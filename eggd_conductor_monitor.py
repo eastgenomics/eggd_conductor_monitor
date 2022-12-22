@@ -3,6 +3,7 @@ Script to monitor state of jobs launched by eggd_conductor, and notify
 via Slack for any fails or when all successfully complete
 """
 import concurrent
+import logging
 import os
 import re
 from requests import Session
@@ -10,6 +11,51 @@ from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
 import dxpy as dx
+
+log = logging.getLogger("monitor log")
+log.setLevel(logging.DEBUG)
+
+handler = logging.handlers.TimedRotatingFileHandler(
+    'eggd_conductor_monitor.log',
+    when="midnight",
+    interval=1,
+    backupCount=5
+)
+
+log.addHandler(handler)
+
+
+def dx_login(token) -> bool:
+
+    """
+    Function to check dxpy login
+
+    Parameters
+    ----------
+    token : str
+        DNAnexus authentication token
+
+    Returns
+    -------
+    bool
+        If login to DNAnexus was successful
+    """
+
+    try:
+        DX_SECURITY_CONTEXT = {
+            "auth_token_type": "Bearer",
+            "auth_token": str(token)
+        }
+
+        dx.set_security_context(DX_SECURITY_CONTEXT)
+        dx.api.system_whoami()
+
+        return True
+
+    except dx.exceptions.InvalidAuthentication as err:
+        log.error(err.error_message())
+
+        return False
 
 
 def find_jobs() -> list:
@@ -23,7 +69,7 @@ def find_jobs() -> list:
         list of describe objects for each job
     """
     jobs = list(dx.bindings.search.find_executions(
-        project='project-GJq6Bb04v59bqJyjGKXgkbkY',
+        project=os.environ.get('DX_PROJECT'),
         state='done',
         created_after='-1d',
         describe=True
@@ -169,7 +215,7 @@ def get_all_job_states(jobs) -> dict:
     return all_states_count
 
 
-def slack_notify(channel, message, job_id) -> None:
+def slack_notify(channel, message, job_id=None) -> None:
     """
     Send notification to given Slack channel
 
@@ -197,21 +243,34 @@ def slack_notify(channel, message, job_id) -> None:
 
         if not response['ok']:
             # error in sending slack notification
-            # log.error(f"Error in sending slack notification: {response.get('error')}")
-            pass
+            log.error(
+                f"Error in sending slack notification: {response.get('error')}"
+            )
         else:
             # log job ID to know we sent an alert for it and not send another
-            with open('monitor_job_ids_notified.log', 'a') as fh:
-                fh.write(f"{job_id}\n")
+            if job_id:
+                with open('monitor_job_ids_notified.log', 'a') as fh:
+                    fh.write(f"{job_id}\n")
     except Exception as err:
-        # log.error(f"Error in sending post request for slack notification: {err}")
-        pass
+        log.error(
+            f"Error in sending post request for slack notification: {err}"
+        )
 
 
 def monitor():
     """
     Main function for monitoring eggd_conductor jobs in a given project
     """
+    if not dx_login(os.environ.get('AUTH_TOKEN')):
+        # error connecting to DNAnexus => notify on Slack
+        slack_notify(
+            channel=os.environ.get('SLACK_ALERT_CHANNEL'),
+            message=(
+                ":warning: eggd_conductor_monitor: Failed to connect to "
+                "DNAnexus with supplied authentication token."
+            )
+        )
+
     conductor_jobs = find_jobs()
     conductor_jobs = filter_notified_jobs(conductor_jobs)
     conductor_jobs = get_run_ids(conductor_jobs)
