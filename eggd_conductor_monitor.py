@@ -395,7 +395,7 @@ def monitor():
             # something has failed => send an alert
             failed_run(job)
         elif list(all_states.keys()) == ['done']:
-            # everything completed with no failed jobs
+            # everything completed with no failed jobs => send notification
             completed_run(job, all_executables, times)
         else:
             # jobs still in progress
