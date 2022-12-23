@@ -14,14 +14,13 @@ from urllib3.util import Retry
 
 import dxpy as dx
 
-
 log = logging.getLogger("monitor log")
 log.setLevel(logging.DEBUG)
 
 log_format = logging.StreamHandler(sys.stdout)
 log_format.setFormatter(
     logging.Formatter(
-        "%(asctime)s:%(name)s:%(module)s:%(levelname)s:%(message)s"
+        "%(asctime)s:%(module)s:%(levelname)s: %(message)s"
     )
 )
 
@@ -32,6 +31,12 @@ handler = logging.handlers.TimedRotatingFileHandler(
     when="midnight",
     interval=1,
     backupCount=5
+)
+
+handler.setFormatter(
+    logging.Formatter(
+        "%(asctime)s:%(module)s:%(levelname)s: %(message)s"
+    )
 )
 
 log.addHandler(handler)
@@ -377,6 +382,8 @@ def monitor():
     """
     Main function for monitoring eggd_conductor jobs in a given project
     """
+    log.info("Starting monitoring")
+
     # test can connect to DNAnexus
     dx_login(os.environ.get('AUTH_TOKEN'))
 
@@ -389,7 +396,7 @@ def monitor():
         # get the state of all launched analysis jobs
         all_states, all_executables, times = get_all_job_states(job)
         log.info(f'Current state for {job["id"]}: {all_states}')
-        all_states={'failed':10}
+        # all_states={'failed':10}
 
         if all_states.get('failed') or all_states.get('partially failed'):
             # something has failed => send an alert
@@ -401,6 +408,8 @@ def monitor():
             # jobs still in progress
             log.info(f"Jobs launched from {job['id']} have not failed or all completed")
             continue
+
+    log.info(f"Finished monitoring\n")
 
 
 if __name__ == "__main__":
