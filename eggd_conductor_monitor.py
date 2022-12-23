@@ -99,7 +99,8 @@ def filter_notified_jobs(jobs) -> list:
     list
         list of job describe objects where no Slack notification has been sent
     """
-    with open('logs/monitor_job_ids_notified.log', 'r') as fh:
+    with open('logs/monitor_job_ids_notified.log', 'a+') as fh:
+        fh.seek(0)
         notified_jobs = fh.read().splitlines()
 
     return [x for x in jobs if x['id'] not in notified_jobs]
@@ -251,6 +252,7 @@ def slack_notify(channel, message, job_id=None) -> None:
     """
     log.info(f"Sending message to {channel}:\n{message}")
     slack_token = os.environ.get('SLACK_TOKEN')
+
     http = Session()
     retries = Retry(total=5, backoff_factor=10, method_whitelist=['POST'])
     http.mount("https://", HTTPAdapter(max_retries=retries))
@@ -270,7 +272,7 @@ def slack_notify(channel, message, job_id=None) -> None:
         else:
             # log job ID to know we sent an alert for it and not send another
             if job_id:
-                with open('logs/monitor_job_ids_notified.log', 'a') as fh:
+                with open('logs/monitor_job_ids_notified.log', 'a+') as fh:
                     fh.write(f"{job_id}\n")
     except Exception as err:
         log.error(
@@ -355,7 +357,7 @@ def monitor():
     Main function for monitoring eggd_conductor jobs in a given project
     """
     # test can connect to DNAnexus
-    # dx_login(os.environ.get('AUTH_TOKEN'))
+    dx_login(os.environ.get('AUTH_TOKEN'))
 
     conductor_jobs = find_jobs()
     conductor_jobs = filter_notified_jobs(conductor_jobs)
