@@ -14,8 +14,18 @@ from urllib3.util import Retry
 
 import dxpy as dx
 
+
 log = logging.getLogger("monitor log")
 log.setLevel(logging.DEBUG)
+
+log_format = logging.StreamHandler(sys.stdout)
+log_format.setFormatter(
+    logging.Formatter(
+        "%(asctime)s:%(name)s:%(module)s:%(levelname)s:%(message)s"
+    )
+)
+
+log.addHandler(log_format)
 
 handler = logging.handlers.TimedRotatingFileHandler(
     'logs/eggd_conductor_monitor.log',
@@ -69,7 +79,6 @@ def find_jobs() -> list:
     jobs : list
         list of describe objects for each job
     """
-    print(os.environ.get('DX_PROJECT'))
     jobs = list(dx.bindings.search.find_executions(
         project=os.environ.get('DX_PROJECT'),
         state='done',
@@ -81,6 +90,11 @@ def find_jobs() -> list:
         x for x in jobs
         if x.get('describe', {}).get('name') == 'eggd_conductor'
     ]
+
+    log.info(
+        f"Found the following {len(jobs)} eggd_conductor jobs: "
+        f"{', '.join([x['id'] for x in jobs])}"
+    )
 
     return jobs
 
@@ -102,6 +116,8 @@ def filter_notified_jobs(jobs) -> list:
     with open('logs/monitor_job_ids_notified.log', 'a+') as fh:
         fh.seek(0)
         notified_jobs = fh.read().splitlines()
+    
+    log.info(f"Jobs already notified via Slack: {notified_jobs}")
 
     return [x for x in jobs if x['id'] not in notified_jobs]
 
@@ -146,6 +162,8 @@ def get_run_ids(jobs) -> list:
         if not run_id:
             # failed to correctly get run id
             run_id = "unknown"
+
+        log.info(f"Found run ID {run_id} for job {job['id']}")
 
         job['run_id'] = run_id
         updated_jobs.append(job)
@@ -250,7 +268,7 @@ def slack_notify(channel, message, job_id=None) -> None:
     job_id : str
         DNAnexus ID of eggd_conductor job
     """
-    log.info(f"Sending message to {channel}:\n{message}")
+    log.info(f"Sending message to {channel}")
     slack_token = os.environ.get('SLACK_TOKEN')
 
     http = Session()
@@ -289,6 +307,7 @@ def failed_run(run) -> None:
     run : dict
         dx describe object of given run
     """
+    log.info(f"Found failed jobs for run {run['run_id']}")
     # get url to downstream analysis added as tag to job
     # filtering by beginning of url in case of multiple tags
     url = ''.join([
@@ -321,6 +340,7 @@ def completed_run(run, executables, times) -> None:
     times : tuple
         first job start time and last job finished time
     """
+    log.info(f"All jobs completed for run {run['run_id']}")
     # get url to downstream analysis added as tag to job
     # filtering by beginning of url in case of multiple tags
     url = ''.join([
@@ -378,6 +398,7 @@ def monitor():
             completed_run(job, all_executables, times)
         else:
             # jobs still in progress
+            log.info(f"Jobs launched from {job['id']} have not failed or all completed")
             continue
 
 
