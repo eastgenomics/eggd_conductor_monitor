@@ -38,16 +38,14 @@ log.addHandler(handler)
 
 
 def dx_login(token):
-
     """
-    Function to check dxpy login
+    Function to check authenitcating to DNAneuxs
 
     Parameters
     ----------
     token : str
         DNAnexus authentication token
     """
-
     try:
         DX_SECURITY_CONTEXT = {
             "auth_token_type": "Bearer",
@@ -183,7 +181,7 @@ def get_launched_jobs(jobs) -> list:
     Returns
     -------
     list
-        _description_
+        list of job describe objects with launched jobs set to output
     """
     updated_jobs = []
 
@@ -236,7 +234,7 @@ def get_all_job_states(jobs) -> dict:
                 stopped.append(describe['modified'])
             except Exception as exc:
                 # catch any errors that might get raised during querying
-                print(
+                log.error(
                     f"Error getting data for {concurrent_jobs[future]}: {exc}"
                 )
 
@@ -250,6 +248,7 @@ def get_all_job_states(jobs) -> dict:
     for exe in set(all_executables):
         all_executables_count[exe] = all_executables.count(exe)
 
+    # get earliest job start time and end time of latest running job
     times = (min(started) / 1000, max(stopped) / 1000)
 
     return all_states_count, all_executables_count, times
@@ -308,6 +307,7 @@ def failed_run(run) -> None:
         dx describe object of given run
     """
     log.info(f"Found failed jobs for run {run['run_id']}")
+
     # get url to downstream analysis added as tag to job
     # filtering by beginning of url in case of multiple tags
     url = ''.join([
@@ -327,7 +327,7 @@ def failed_run(run) -> None:
 
 def completed_run(run, executables, times) -> None:
     """
-    Build message and sent Slack notification for completd run
+    Build message and sent Slack notification for completed run
 
     Parameters
     ----------
@@ -341,6 +341,7 @@ def completed_run(run, executables, times) -> None:
         first job start time and last job finished time
     """
     log.info(f"All jobs completed for run {run['run_id']}")
+
     # get url to downstream analysis added as tag to job
     # filtering by beginning of url in case of multiple tags
     url = ''.join([
