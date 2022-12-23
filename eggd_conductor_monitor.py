@@ -75,7 +75,7 @@ def dx_login(token):
 def find_jobs() -> list:
     """
     Find eggd_conductor jobs that have run in the given project
-    in the last 72 hours
+    in the last 48 hours
 
     Returns
     -------
@@ -85,7 +85,7 @@ def find_jobs() -> list:
     jobs = list(dx.bindings.search.find_executions(
         project=os.environ.get('DX_PROJECT'),
         state='done',
-        created_after='-6h',
+        created_after='-48h',
         describe=True
     ))
 
@@ -396,7 +396,6 @@ def monitor():
         # get the state of all launched analysis jobs
         all_states, all_executables, times = get_all_job_states(job)
         log.info(f'Current state for {job["id"]}: {all_states}')
-        # all_states={'failed':10}
 
         if all_states.get('failed') or all_states.get('partially failed'):
             # something has failed => send an alert
