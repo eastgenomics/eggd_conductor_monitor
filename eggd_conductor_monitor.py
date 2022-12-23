@@ -3,11 +3,13 @@ Script to monitor state of jobs launched by eggd_conductor, and notify
 via Slack for any fails or when all successfully complete
 """
 import concurrent
+from datetime import datetime
 import logging
 import os
 import re
 from requests import Session
 from requests.adapters import HTTPAdapter
+import sys
 from urllib3.util import Retry
 
 import dxpy as dx
@@ -16,7 +18,7 @@ log = logging.getLogger("monitor log")
 log.setLevel(logging.DEBUG)
 
 handler = logging.handlers.TimedRotatingFileHandler(
-    'eggd_conductor_monitor.log',
+    'logs/eggd_conductor_monitor.log',
     when="midnight",
     interval=1,
     backupCount=5
@@ -25,7 +27,7 @@ handler = logging.handlers.TimedRotatingFileHandler(
 log.addHandler(handler)
 
 
-def dx_login(token) -> bool:
+def dx_login(token):
 
     """
     Function to check dxpy login
@@ -34,11 +36,6 @@ def dx_login(token) -> bool:
     ----------
     token : str
         DNAnexus authentication token
-
-    Returns
-    -------
-    bool
-        If login to DNAnexus was successful
     """
 
     try:
@@ -49,13 +46,17 @@ def dx_login(token) -> bool:
 
         dx.set_security_context(DX_SECURITY_CONTEXT)
         dx.api.system_whoami()
-
-        return True
-
     except dx.exceptions.InvalidAuthentication as err:
         log.error(err.error_message())
 
-        return False
+        # error connecting to DNAnexus => notify on Slack
+        slack_notify(
+            channel=os.environ.get('SLACK_ALERT_CHANNEL'),
+            message=(
+                ":warning: eggd_conductor_monitor: Failed to connect to "
+                "DNAnexus with supplied authentication token."
+            )
+        )
 
 
 def find_jobs() -> list:
@@ -68,10 +69,11 @@ def find_jobs() -> list:
     jobs : list
         list of describe objects for each job
     """
+    print(os.environ.get('DX_PROJECT'))
     jobs = list(dx.bindings.search.find_executions(
         project=os.environ.get('DX_PROJECT'),
         state='done',
-        created_after='-1d',
+        created_after='-6h',
         describe=True
     ))
 
@@ -97,9 +99,9 @@ def filter_notified_jobs(jobs) -> list:
     list
         list of job describe objects where no Slack notification has been sent
     """
-    with open('monitor_job_ids_notified.log', 'r') as fh:
+    with open('logs/monitor_job_ids_notified.log', 'r') as fh:
         notified_jobs = fh.read().splitlines()
-    
+
     return [x for x in jobs if x['id'] not in notified_jobs]
 
 
@@ -188,8 +190,17 @@ def get_all_job_states(jobs) -> dict:
     -------
     all_states_counts : dict
         mapping of state to total jobs
+
+    all_executables_count : dict
+        mapping of executableNames to count of each executable
+
+    times : tuple
+        first job start time and last job finished time
     """
     all_states = []
+    all_executables = []
+    started = []
+    stopped = []
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=32) as executor:
         # submit query to get state of job / analysis
@@ -199,8 +210,11 @@ def get_all_job_states(jobs) -> dict:
         for future in concurrent.futures.as_completed(concurrent_jobs):
             # access returned output as each is returned in any order
             try:
-                job_state = future.result()
-                all_states.append(job_state.get('state'))
+                describe = future.result()
+                all_states.append(describe.get('state'))
+                all_executables.append(describe.get('executableName'))
+                started.append(describe['created'])
+                stopped.append(describe['modified'])
             except Exception as exc:
                 # catch any errors that might get raised during querying
                 print(
@@ -212,7 +226,14 @@ def get_all_job_states(jobs) -> dict:
     for state in set(all_states):
         all_states_count[state] = all_states.count(state)
 
-    return all_states_count
+    # get a count of each executable
+    all_executables_count = {}
+    for exe in set(all_executables):
+        all_executables_count[exe] = all_executables.count(exe)
+
+    times = (min(started) / 1000, max(stopped) / 1000)
+
+    return all_states_count, all_executables_count, times
 
 
 def slack_notify(channel, message, job_id=None) -> None:
@@ -228,11 +249,11 @@ def slack_notify(channel, message, job_id=None) -> None:
     job_id : str
         DNAnexus ID of eggd_conductor job
     """
+    log.info(f"Sending message to {channel}:\n{message}")
     slack_token = os.environ.get('SLACK_TOKEN')
     http = Session()
     retries = Retry(total=5, backoff_factor=10, method_whitelist=['POST'])
     http.mount("https://", HTTPAdapter(max_retries=retries))
-
     try:
         response = http.post(
             'https://slack.com/api/chat.postMessage', {
@@ -249,7 +270,7 @@ def slack_notify(channel, message, job_id=None) -> None:
         else:
             # log job ID to know we sent an alert for it and not send another
             if job_id:
-                with open('monitor_job_ids_notified.log', 'a') as fh:
+                with open('logs/monitor_job_ids_notified.log', 'a') as fh:
                     fh.write(f"{job_id}\n")
     except Exception as err:
         log.error(
@@ -257,19 +278,84 @@ def slack_notify(channel, message, job_id=None) -> None:
         )
 
 
+def failed_run(run) -> None:
+    """
+    Build message and sent Slack notification to alert of failed job(s)
+
+    Parameters
+    ----------
+    run : dict
+        dx describe object of given run
+    """
+    # get url to downstream analysis added as tag to job
+    # filtering by beginning of url in case of multiple tags
+    url = ''.join([
+        x for x in run['describe']['tags']
+        if x.startswith('platform.dnanexus.com')
+    ])
+
+    channel = os.environ.get('SLACK_ALERT_CHANNEL')
+    message = (
+        ":x: eggd_conductor_monitoring: Automated job(s) failed processing "
+        f"run *{run.get('run_id')}* from `{run.get('id')}`.\n"
+        f"Analysis project: {url}"
+    )
+
+    slack_notify(channel=channel, message=message, job_id=run['id'])
+
+
+def completed_run(run, executables, times) -> None:
+    """
+    Build message and sent Slack notification for completd run
+
+    Parameters
+    ----------
+    run : dict
+        dx describe object of given run
+
+    executables : dict
+        mapping of executables run and total count of each
+
+    times : tuple
+        first job start time and last job finished time
+    """
+    # get url to downstream analysis added as tag to job
+    # filtering by beginning of url in case of multiple tags
+    url = ''.join([
+        x for x in run['describe']['tags']
+        if x.startswith('platform.dnanexus.com')
+    ])
+
+    # calculate run time of pipeline and including conductor job
+    pipeline = datetime.fromtimestamp(
+        times[1] - times[0]).strftime('%Hh%Mm').lstrip('0')
+    total = datetime.fromtimestamp(
+        times[1] - (run['describe']['created'] / 1000)
+        ).strftime('%Hh%Mm').lstrip('0')
+
+    # build list of what has been run
+    executables = ''.join([
+        f":black_small_square: {v}x {k}\n" for k, v in executables.items()
+    ])
+
+    channel = os.environ.get('SLACK_LOG_CHANNEL')
+    message = (
+        ":white_check_mark: eggd_conductor_monitoring: All jobs "
+        f"completed successfully processing *{run.get('run_id')}*.\n"
+        f"Total elapsed time: *{total}*\nPipeline runtime: *{pipeline}*\n"
+        f"Apps / workflows run: \n{executables}\n"
+        f"Analysis project: {url}"
+    )
+
+    slack_notify(channel=channel, message=message, job_id=run['id'])
+
+
 def monitor():
     """
     Main function for monitoring eggd_conductor jobs in a given project
     """
-    if not dx_login(os.environ.get('AUTH_TOKEN')):
-        # error connecting to DNAnexus => notify on Slack
-        slack_notify(
-            channel=os.environ.get('SLACK_ALERT_CHANNEL'),
-            message=(
-                ":warning: eggd_conductor_monitor: Failed to connect to "
-                "DNAnexus with supplied authentication token."
-            )
-        )
+    # test can connect to DNAnexus
+    # dx_login(os.environ.get('AUTH_TOKEN'))
 
     conductor_jobs = find_jobs()
     conductor_jobs = filter_notified_jobs(conductor_jobs)
@@ -278,43 +364,19 @@ def monitor():
 
     for job in conductor_jobs:
         # get the state of all launched analysis jobs
-        all_states = get_all_job_states(job)
-
-        # get url to downstream analysis added as tag to job
-        # filtering by beginning of url in case of multiple tags
-        url = ''.join([
-            x for x in job['describe']['tags']
-            if x.startswith('platform.dnanexus.com')
-        ])
-
+        all_states, all_executables, times = get_all_job_states(job)
+        log.info(f'Current state for {job["id"]}: {all_states}')
+        all_states={'failed':10}
 
         if all_states.get('failed') or all_states.get('partially failed'):
             # something has failed => send an alert
-            channel = os.environ.get('SLACK_ALERT_CHANNEL')
-            message = (
-                ":warning: eggd_conductor_monitoring: Jobs failed processing "
-                f"run *{job.get('run_id')}* in job {job.get('id')}.\n"
-                f"Analysis project: {url}"
-            )
-        elif (
-            not all_states.get('in progress') and
-            not all_states.get('waiting') and
-            not all_states.get('running') and
-            not all_states.get('terminated')
-        ):
-            # everything completed successfully
-            channel = os.environ.get('SLACK_LOG_CHANNEL')
-            message = (
-                ":white_check_mark: eggd_conductor_monitoring: All jobs "
-                f"completed successfully processing {job.get('run_id')}.\n"
-                f"Analysis project: {url}"
-            )
+            failed_run(job)
+        elif list(all_states.keys()) == ['done']:
+            # everything completed with no failed jobs
+            completed_run(job, all_executables, times)
         else:
             # jobs still in progress
             continue
-
-        # send message to slack
-        slack_notify(channel=channel, message=message, job_id=job['id'])
 
 
 if __name__ == "__main__":
