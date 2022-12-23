@@ -44,7 +44,7 @@ log.addHandler(handler)
 
 def dx_login(token):
     """
-    Function to check authenitcating to DNAneuxs
+    Function to check authenticating to DNAneuxs
 
     Parameters
     ----------
