@@ -298,7 +298,7 @@ def failed_run(run) -> None:
 
     channel = os.environ.get('SLACK_ALERT_CHANNEL')
     message = (
-        ":x: eggd_conductor_monitoring: Automated job(s) failed processing "
+        ":x: eggd_conductor_monitor: Automated job(s) failed processing "
         f"run *{run.get('run_id')}* from `{run.get('id')}`.\n"
         f"Analysis project: {url}"
     )
@@ -342,7 +342,7 @@ def completed_run(run, executables, times) -> None:
 
     channel = os.environ.get('SLACK_LOG_CHANNEL')
     message = (
-        ":white_check_mark: eggd_conductor_monitoring: All jobs "
+        ":white_check_mark: eggd_conductor_monitor: All jobs "
         f"completed successfully processing *{run.get('run_id')}*.\n"
         f"Total elapsed time: *{total}*\nPipeline runtime: *{pipeline}*\n"
         f"Apps / workflows run: \n{executables}\n"
