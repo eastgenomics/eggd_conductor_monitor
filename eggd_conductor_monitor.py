@@ -384,6 +384,21 @@ def monitor():
     """
     log.info("Starting monitoring")
 
+    required = [
+        "AUTH_TOKEN",
+        "DX_PROJECT",
+        "SLACK_TOKEN",
+        "SLACK_LOG_CHANNEL",
+        "SLACK_ALERT_CHANNEL"
+    ]
+
+    missing = [x for x in required if not os.environ.get(x)]
+
+    if missing:
+        # one or more required env variables not set
+        log.error(f"Required env variable(s) not set: {missing}. Exiting now.")
+        sys.exit()
+
     # test can connect to DNAnexus
     dx_login(os.environ.get('AUTH_TOKEN'))
 
