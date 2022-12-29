@@ -20,7 +20,7 @@ Required environment variables:
 
 ## Usage
 
-- Build Docker image: `docker build . -t eggd_conductor_monitor
+- Build Docker image: `docker build . -t eggd_conductor_monitor`
 
 - Run Docker image: `docker run -d {image}`
   - environment variables either should be passed with Docker run as `--env`, in a file as `--env-file` or set in the running detached container
