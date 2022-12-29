@@ -1,5 +1,5 @@
 # eggd_conductor_monitor
-Monitoring script for checking and notifying status of jobs launched with [eggd_conductor][https://github.com/eastgenomics/eggd_conductor].
+Monitoring script for checking and notifying status of jobs launched with [eggd_conductor](https://github.com/eastgenomics/eggd_conductor).
 
 The given `DX_PROJECT` is monitored for `eggd_conductor` jobs run in the past 48 hours, for which if they have completed all analysis jobs launched from this job will be checked for their state.
 - If all are `done`, a success notification will be sent to the `SLACK_LOG_CHANNEL` and the job ID logged to not send further notifications for
