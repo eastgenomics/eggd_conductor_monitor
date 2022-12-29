@@ -6,7 +6,7 @@ The given `DX_PROJECT` is monitored for `eggd_conductor` jobs run in the past 48
 - If any have the state `failed` or `partially failed`, an alert is sent to the `SLACK_ALERT_CHANNEL` to notify of a failed analysis job and the job ID logged to not send further notifications for
 - If neither of the above conditions are met then the job(s) will be checked again the next time the monitor script is run
 
-This should be set to run on a frequent cron job so that any running analyses are frequently checked for failed jobs and all completing, to send out timely notifications.
+The main script to run in the container is `eggd_conductor_monitor.py`, and takes no arguments as input (all required variables are parsed from the environment). This should be set to run on a frequent cron job (either from the host or in a detached container) so that any running analyses are frequently checked for all jobs completing or any failed jobs, to send out timely notifications.
 
 
 ## Requirements
@@ -24,3 +24,7 @@ Required environment variables:
 
 - Run Docker image: `docker run -d {image}`
   - environment variables either should be passed with Docker run as `--env`, in a file as `--env-file` or set in the running detached container
+
+## Logging
+
+Full logs are written to `/logs/eggd_conductor_monitor.log`, and the list of `eggd_conductor` job IDs that have already had a Slack notification sent for are written to `/logs/monitor_job_ids_notified.log`.
