@@ -119,8 +119,11 @@ def filter_notified_jobs(jobs) -> list:
     with open('logs/monitor_job_ids_notified.log', 'a+') as fh:
         fh.seek(0)
         notified_jobs = fh.read().splitlines()
-    
-    log.info(f"Jobs already notified via Slack: {notified_jobs}")
+
+    log.info(
+        "Jobs already notified via Slack or not to notify: "
+        f"{os.linesep}{notified_jobs}"
+    )
 
     return [x for x in jobs if x['id'] not in notified_jobs]
 
@@ -254,7 +257,14 @@ def get_all_job_states(jobs) -> dict:
         all_executables_count[exe] = all_executables.count(exe)
 
     # get earliest job start time and end time of latest running job
-    times = (min(started) / 1000, max(stopped) / 1000)
+    if started and stopped:
+        times = (min(started) / 1000, max(stopped) / 1000)
+    else:
+        # if querying is immediately after launching jobs (or the 
+        # eggd_conductor job did not launch any jobs) then the created
+        # and modified metadata fields may be null => only calculate if
+        # something is present, else just return zeros
+        times = (0, 0)
 
     return all_states_count, all_executables_count, times
 
@@ -418,6 +428,17 @@ def monitor():
         elif list(all_states.keys()) == ['done']:
             # everything completed with no failed jobs => send notification
             completed_run(job, all_executables, times)
+        elif list(all_states.keys()) == ['terminated']:
+            # everything has been terminated => add the run ID to the
+            # notified log file to stop checking it
+            log.info(f"All jobs terminated for {job['id']} => stopping monitoring")
+            with open('logs/monitor_job_ids_notified.log', 'a+') as fh:
+                fh.write(f"{job['id']}\n")
+        elif not all_states:
+            # no job states => no launched jobs => stop monitoring
+            log.info(f"No launched jobs for {job['id']} => stopping monitoring")
+            with open('logs/monitor_job_ids_notified.log', 'a+') as fh:
+                fh.write(f"{job['id']}\n")
         else:
             # jobs still in progress
             log.info(f"Jobs launched from {job['id']} have not failed or all completed")
