@@ -91,7 +91,7 @@ def find_jobs() -> list:
 
     jobs = [
         x for x in jobs
-        if x.get('describe', {}).get('name') == 'eggd_conductor'
+        if x.get('describe', {}).get('executableName') == 'eggd_conductor'
     ]
 
     log.info(
