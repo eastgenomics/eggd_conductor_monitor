@@ -150,7 +150,7 @@ def get_run_ids(jobs) -> list:
     for job in jobs:
         job_input = job.get('describe', {}).get('originalInput', {})
 
-        sentinel = job_input.get('SENTINEL_FILE')
+        sentinel = job_input.get('upload_sentinel_record')
         run_id = job_input.get('RUN_ID')
         run_info_xml = job_input.get('RUN_INFO_XML')
 
