@@ -2,6 +2,7 @@
 Script to monitor state of jobs launched by eggd_conductor, and notify
 via Slack for any fails or when all successfully complete
 """
+
 import concurrent
 from datetime import datetime
 import logging
@@ -19,24 +20,20 @@ log.setLevel(logging.DEBUG)
 
 log_format = logging.StreamHandler(sys.stdout)
 log_format.setFormatter(
-    logging.Formatter(
-        "%(asctime)s:%(module)s:%(levelname)s: %(message)s"
-    )
+    logging.Formatter("%(asctime)s:%(module)s:%(levelname)s: %(message)s")
 )
 
 log.addHandler(log_format)
 
 handler = logging.handlers.TimedRotatingFileHandler(
-    'logs/eggd_conductor_monitor.log',
+    "logs/eggd_conductor_monitor.log",
     when="midnight",
     interval=1,
-    backupCount=5
+    backupCount=5,
 )
 
 handler.setFormatter(
-    logging.Formatter(
-        "%(asctime)s:%(module)s:%(levelname)s: %(message)s"
-    )
+    logging.Formatter("%(asctime)s:%(module)s:%(levelname)s: %(message)s")
 )
 
 log.addHandler(handler)
@@ -54,7 +51,7 @@ def dx_login(token):
     try:
         DX_SECURITY_CONTEXT = {
             "auth_token_type": "Bearer",
-            "auth_token": str(token)
+            "auth_token": str(token),
         }
 
         dx.set_security_context(DX_SECURITY_CONTEXT)
@@ -64,11 +61,11 @@ def dx_login(token):
 
         # error connecting to DNAnexus => notify on Slack
         slack_notify(
-            channel=os.environ.get('SLACK_ALERT_CHANNEL'),
+            channel=os.environ.get("SLACK_ALERT_CHANNEL"),
             message=(
                 ":warning: eggd_conductor_monitor: Failed to connect to "
                 "DNAnexus with supplied authentication token."
-            )
+            ),
         )
 
 
@@ -82,16 +79,19 @@ def find_jobs() -> list:
     jobs : list
         list of describe objects for each job
     """
-    jobs = list(dx.bindings.search.find_executions(
-        project=os.environ.get('DX_PROJECT'),
-        state='done',
-        created_after='-48h',
-        describe=True
-    ))
+    jobs = list(
+        dx.bindings.search.find_executions(
+            project=os.environ.get("DX_PROJECT"),
+            state="done",
+            created_after="-48h",
+            describe=True,
+        )
+    )
 
     jobs = [
-        x for x in jobs
-        if x.get('describe', {}).get('executableName') == 'eggd_conductor'
+        x
+        for x in jobs
+        if x.get("describe", {}).get("executableName") == "eggd_conductor"
     ]
 
     log.info(
@@ -116,7 +116,7 @@ def filter_notified_jobs(jobs) -> list:
     list
         list of job describe objects where no Slack notification has been sent
     """
-    with open('logs/monitor_job_ids_notified.log', 'a+') as fh:
+    with open("logs/monitor_job_ids_notified.log", "a+") as fh:
         fh.seek(0)
         notified_jobs = fh.read().splitlines()
 
@@ -125,7 +125,7 @@ def filter_notified_jobs(jobs) -> list:
         f"{os.linesep}{notified_jobs}"
     )
 
-    return [x for x in jobs if x['id'] not in notified_jobs]
+    return [x for x in jobs if x["id"] not in notified_jobs]
 
 
 def get_run_ids(jobs) -> list:
@@ -148,20 +148,22 @@ def get_run_ids(jobs) -> list:
     updated_jobs = []
 
     for job in jobs:
-        job_input = job.get('describe', {}).get('originalInput', {})
+        job_input = job.get("describe", {}).get("originalInput", {})
 
-        sentinel = job_input.get('upload_sentinel_record')
-        run_id = job_input.get('RUN_ID')
-        run_info_xml = job_input.get('RUN_INFO_XML')
+        sentinel = job_input.get("upload_sentinel_record")
+        run_id = job_input.get("RUN_ID")
+        run_info_xml = job_input.get("RUN_INFO_XML")
 
         if run_id:
             continue
         elif sentinel:
-            run_id = dx.describe(sentinel).get('name', '')
-            run_id = run_id.replace('run.', '').replace('.lane.all.upload_sentinel', '')
+            run_id = dx.describe(sentinel).get("name", "")
+            run_id = run_id.replace("run.", "").replace(
+                ".lane.all.upload_sentinel", ""
+            )
         elif run_info_xml:
             file_contents = dx.bindings.dxfile.DXFile(run_info_xml).read()
-            run_id = re.search(r'Run Id=\"[A-Z0-9_]*\"', file_contents)
+            run_id = re.search(r"Run Id=\"[A-Z0-9_]*\"", file_contents)
             if run_id:
                 run_id = run_id.group(0).replace("Run Id=", "").strip('"')
 
@@ -171,7 +173,7 @@ def get_run_ids(jobs) -> list:
 
         log.info(f"Found run ID {run_id} for job {job['id']}")
 
-        job['run_id'] = run_id
+        job["run_id"] = run_id
         updated_jobs.append(job)
 
     return updated_jobs
@@ -194,8 +196,8 @@ def get_launched_jobs(jobs) -> list:
     updated_jobs = []
 
     for job in jobs:
-        output = job.get('describe').get('output').get('job_ids', '')
-        job['output'] = [x for x in output.split(',') if x]
+        output = job.get("describe").get("output").get("job_ids", "")
+        job["output"] = [x for x in output.split(",") if x]
 
         updated_jobs.append(job)
 
@@ -230,16 +232,16 @@ def get_all_job_states(jobs) -> dict:
     with concurrent.futures.ThreadPoolExecutor(max_workers=32) as executor:
         # submit query to get state of job / analysis
         concurrent_jobs = {
-            executor.submit(dx.describe, id): id for id in jobs['output']
+            executor.submit(dx.describe, id): id for id in jobs["output"]
         }
         for future in concurrent.futures.as_completed(concurrent_jobs):
             # access returned output as each is returned in any order
             try:
                 describe = future.result()
-                all_states.append(describe.get('state'))
-                all_executables.append(describe.get('executableName'))
-                started.append(describe['created'])
-                stopped.append(describe['modified'])
+                all_states.append(describe.get("state"))
+                all_executables.append(describe.get("executableName"))
+                started.append(describe["created"])
+                stopped.append(describe["modified"])
             except Exception as exc:
                 # catch any errors that might get raised during querying
                 log.error(
@@ -260,7 +262,7 @@ def get_all_job_states(jobs) -> dict:
     if started and stopped:
         times = (min(started) / 1000, max(stopped) / 1000)
     else:
-        # if querying is immediately after launching jobs (or the 
+        # if querying is immediately after launching jobs (or the
         # eggd_conductor job did not launch any jobs) then the created
         # and modified metadata fields may be null => only calculate if
         # something is present, else just return zeros
@@ -283,20 +285,18 @@ def slack_notify(channel, message, job_id=None) -> None:
         DNAnexus ID of eggd_conductor job
     """
     log.info(f"Sending message to {channel}")
-    slack_token = os.environ.get('SLACK_TOKEN')
+    slack_token = os.environ.get("SLACK_TOKEN")
 
     http = Session()
-    retries = Retry(total=5, backoff_factor=10, method_whitelist=['POST'])
+    retries = Retry(total=5, backoff_factor=10, method_whitelist=["POST"])
     http.mount("https://", HTTPAdapter(max_retries=retries))
     try:
         response = http.post(
-            'https://slack.com/api/chat.postMessage', {
-                'token': slack_token,
-                'channel': f"#{channel}",
-                'text': message
-            }).json()
+            "https://slack.com/api/chat.postMessage",
+            {"token": slack_token, "channel": f"#{channel}", "text": message},
+        ).json()
 
-        if not response['ok']:
+        if not response["ok"]:
             # error in sending slack notification
             log.error(
                 f"Error in sending slack notification: {response.get('error')}"
@@ -304,7 +304,7 @@ def slack_notify(channel, message, job_id=None) -> None:
         else:
             # log job ID to know we sent an alert for it and not send another
             if job_id:
-                with open('logs/monitor_job_ids_notified.log', 'a+') as fh:
+                with open("logs/monitor_job_ids_notified.log", "a+") as fh:
                     fh.write(f"{job_id}\n")
     except Exception as err:
         log.error(
@@ -325,19 +325,22 @@ def failed_run(run) -> None:
 
     # get url to downstream analysis added as tag to job
     # filtering by beginning of url in case of multiple tags
-    url = ''.join([
-        x for x in run['describe']['tags']
-        if x.startswith('platform.dnanexus.com')
-    ])
+    url = "".join(
+        [
+            x
+            for x in run["describe"]["tags"]
+            if x.startswith("platform.dnanexus.com")
+        ]
+    )
 
-    channel = os.environ.get('SLACK_ALERT_CHANNEL')
+    channel = os.environ.get("SLACK_ALERT_CHANNEL")
     message = (
         ":x: eggd_conductor_monitor: Automated job(s) failed processing "
         f"run *{run.get('run_id')}* from `{run.get('id')}`.\n"
         f"Analysis project: {url}"
     )
 
-    slack_notify(channel=channel, message=message, job_id=run['id'])
+    slack_notify(channel=channel, message=message, job_id=run["id"])
 
 
 def completed_run(run, executables, times) -> None:
@@ -359,24 +362,32 @@ def completed_run(run, executables, times) -> None:
 
     # get url to downstream analysis added as tag to job
     # filtering by beginning of url in case of multiple tags
-    url = ''.join([
-        x for x in run['describe']['tags']
-        if x.startswith('platform.dnanexus.com')
-    ])
+    url = "".join(
+        [
+            x
+            for x in run["describe"]["tags"]
+            if x.startswith("platform.dnanexus.com")
+        ]
+    )
 
     # calculate run time of pipeline and including conductor job
-    pipeline = datetime.fromtimestamp(
-        times[1] - times[0]).strftime('%Hh%Mm').lstrip('0')
-    total = datetime.fromtimestamp(
-        times[1] - (run['describe']['created'] / 1000)
-        ).strftime('%Hh%Mm').lstrip('0')
+    pipeline = (
+        datetime.fromtimestamp(times[1] - times[0])
+        .strftime("%Hh%Mm")
+        .lstrip("0")
+    )
+    total = (
+        datetime.fromtimestamp(times[1] - (run["describe"]["created"] / 1000))
+        .strftime("%Hh%Mm")
+        .lstrip("0")
+    )
 
     # build list of what has been run
-    executables = ''.join([
-        f":black_small_square: {v}x {k}\n" for k, v in executables.items()
-    ])
+    executables = "".join(
+        [f":black_small_square: {v}x {k}\n" for k, v in executables.items()]
+    )
 
-    channel = os.environ.get('SLACK_LOG_CHANNEL')
+    channel = os.environ.get("SLACK_LOG_CHANNEL")
     message = (
         ":white_check_mark: eggd_conductor_monitor: All jobs "
         f"completed successfully processing run *{run.get('run_id')}*.\n"
@@ -385,7 +396,7 @@ def completed_run(run, executables, times) -> None:
         f"Analysis project: {url}"
     )
 
-    slack_notify(channel=channel, message=message, job_id=run['id'])
+    slack_notify(channel=channel, message=message, job_id=run["id"])
 
 
 def monitor():
@@ -399,7 +410,7 @@ def monitor():
         "DX_PROJECT",
         "SLACK_TOKEN",
         "SLACK_LOG_CHANNEL",
-        "SLACK_ALERT_CHANNEL"
+        "SLACK_ALERT_CHANNEL",
     ]
 
     missing = [x for x in required if not os.environ.get(x)]
@@ -410,7 +421,7 @@ def monitor():
         sys.exit()
 
     # test can connect to DNAnexus
-    dx_login(os.environ.get('AUTH_TOKEN'))
+    dx_login(os.environ.get("AUTH_TOKEN"))
 
     conductor_jobs = find_jobs()
     conductor_jobs = filter_notified_jobs(conductor_jobs)
@@ -422,26 +433,32 @@ def monitor():
         all_states, all_executables, times = get_all_job_states(job)
         log.info(f'Current state for {job["id"]}: {all_states}')
 
-        if all_states.get('failed') or all_states.get('partially failed'):
+        if all_states.get("failed") or all_states.get("partially failed"):
             # something has failed => send an alert
             failed_run(job)
-        elif list(all_states.keys()) == ['done']:
+        elif list(all_states.keys()) == ["done"]:
             # everything completed with no failed jobs => send notification
             completed_run(job, all_executables, times)
-        elif list(all_states.keys()) == ['terminated']:
+        elif list(all_states.keys()) == ["terminated"]:
             # everything has been terminated => add the run ID to the
             # notified log file to stop checking it
-            log.info(f"All jobs terminated for {job['id']} => stopping monitoring")
-            with open('logs/monitor_job_ids_notified.log', 'a+') as fh:
+            log.info(
+                f"All jobs terminated for {job['id']} => stopping monitoring"
+            )
+            with open("logs/monitor_job_ids_notified.log", "a+") as fh:
                 fh.write(f"{job['id']}\n")
         elif not all_states:
             # no job states => no launched jobs => stop monitoring
-            log.info(f"No launched jobs for {job['id']} => stopping monitoring")
-            with open('logs/monitor_job_ids_notified.log', 'a+') as fh:
+            log.info(
+                f"No launched jobs for {job['id']} => stopping monitoring"
+            )
+            with open("logs/monitor_job_ids_notified.log", "a+") as fh:
                 fh.write(f"{job['id']}\n")
         else:
             # jobs still in progress
-            log.info(f"Jobs launched from {job['id']} have not failed or all completed")
+            log.info(
+                f"Jobs launched from {job['id']} have not failed or all completed"
+            )
             continue
 
     log.info(f"Finished monitoring\n")
