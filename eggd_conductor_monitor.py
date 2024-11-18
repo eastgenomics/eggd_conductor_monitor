@@ -7,7 +7,6 @@ import concurrent
 from datetime import datetime
 import logging
 import os
-import re
 from requests import Session
 from requests.adapters import HTTPAdapter
 import sys
@@ -151,8 +150,7 @@ def get_run_ids(jobs) -> list:
         job_input = job.get("describe", {}).get("originalInput", {})
 
         sentinel = job_input.get("upload_sentinel_record")
-        run_id = job_input.get("RUN_ID")
-        run_info_xml = job_input.get("RUN_INFO_XML")
+        run_id = job_input.get("run_id")
 
         if run_id:
             continue
@@ -161,11 +159,6 @@ def get_run_ids(jobs) -> list:
             run_id = run_id.replace("run.", "").replace(
                 ".lane.all.upload_sentinel", ""
             )
-        elif run_info_xml:
-            file_contents = dx.bindings.dxfile.DXFile(run_info_xml).read()
-            run_id = re.search(r"Run Id=\"[A-Z0-9_]*\"", file_contents)
-            if run_id:
-                run_id = run_id.group(0).replace("Run Id=", "").strip('"')
 
         if not run_id:
             # failed to correctly get run id
@@ -436,9 +429,11 @@ def monitor():
         if all_states.get("failed") or all_states.get("partially failed"):
             # something has failed => send an alert
             failed_run(job)
+
         elif list(all_states.keys()) == ["done"]:
             # everything completed with no failed jobs => send notification
             completed_run(job, all_executables, times)
+
         elif list(all_states.keys()) == ["terminated"]:
             # everything has been terminated => add the run ID to the
             # notified log file to stop checking it
@@ -447,6 +442,7 @@ def monitor():
             )
             with open("logs/monitor_job_ids_notified.log", "a+") as fh:
                 fh.write(f"{job['id']}\n")
+
         elif not all_states:
             # no job states => no launched jobs => stop monitoring
             log.info(
@@ -454,6 +450,7 @@ def monitor():
             )
             with open("logs/monitor_job_ids_notified.log", "a+") as fh:
                 fh.write(f"{job['id']}\n")
+
         else:
             # jobs still in progress
             log.info(
@@ -461,7 +458,7 @@ def monitor():
             )
             continue
 
-    log.info(f"Finished monitoring\n")
+    log.info("Finished monitoring\n")
 
 
 if __name__ == "__main__":
