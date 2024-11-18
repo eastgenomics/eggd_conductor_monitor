@@ -7,6 +7,7 @@ import concurrent
 from datetime import datetime
 import logging
 import os
+import re
 from requests import Session
 from requests.adapters import HTTPAdapter
 import sys
@@ -149,16 +150,21 @@ def get_run_ids(jobs) -> list:
     for job in jobs:
         job_input = job.get("describe", {}).get("originalInput", {})
 
+        run_id_matches = [
+            re.search(r"run_id", ele, re.IGNORECASE) for ele in job_input
+        ]
         sentinel = job_input.get("upload_sentinel_record")
-        run_id = job_input.get("run_id")
 
-        if run_id:
-            continue
-        elif sentinel:
+        if sentinel:
             run_id = dx.describe(sentinel).get("name", "")
             run_id = run_id.replace("run.", "").replace(
                 ".lane.all.upload_sentinel", ""
             )
+        elif any(run_id_matches):
+            run_id = job_input.get(
+                [match.group(0) for match in run_id_matches if match][0]
+            )
+            continue
 
         if not run_id:
             # failed to correctly get run id
