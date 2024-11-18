@@ -150,22 +150,21 @@ def get_run_ids(jobs) -> list:
     for job in jobs:
         job_input = job.get("describe", {}).get("originalInput", {})
 
+        run_id_matches = [
+            re.search(r"run_id", ele, re.IGNORECASE) for ele in job_input
+        ]
         sentinel = job_input.get("upload_sentinel_record")
-        run_id = job_input.get("RUN_ID")
-        run_info_xml = job_input.get("RUN_INFO_XML")
 
-        if run_id:
-            continue
-        elif sentinel:
+        if sentinel:
             run_id = dx.describe(sentinel).get("name", "")
             run_id = run_id.replace("run.", "").replace(
                 ".lane.all.upload_sentinel", ""
             )
-        elif run_info_xml:
-            file_contents = dx.bindings.dxfile.DXFile(run_info_xml).read()
-            run_id = re.search(r"Run Id=\"[A-Z0-9_]*\"", file_contents)
-            if run_id:
-                run_id = run_id.group(0).replace("Run Id=", "").strip('"')
+        elif any(run_id_matches):
+            run_id = job_input.get(
+                [match.group(0) for match in run_id_matches if match][0]
+            )
+            continue
 
         if not run_id:
             # failed to correctly get run id
@@ -436,9 +435,11 @@ def monitor():
         if all_states.get("failed") or all_states.get("partially failed"):
             # something has failed => send an alert
             failed_run(job)
+
         elif list(all_states.keys()) == ["done"]:
             # everything completed with no failed jobs => send notification
             completed_run(job, all_executables, times)
+
         elif list(all_states.keys()) == ["terminated"]:
             # everything has been terminated => add the run ID to the
             # notified log file to stop checking it
@@ -447,6 +448,7 @@ def monitor():
             )
             with open("logs/monitor_job_ids_notified.log", "a+") as fh:
                 fh.write(f"{job['id']}\n")
+
         elif not all_states:
             # no job states => no launched jobs => stop monitoring
             log.info(
@@ -454,6 +456,7 @@ def monitor():
             )
             with open("logs/monitor_job_ids_notified.log", "a+") as fh:
                 fh.write(f"{job['id']}\n")
+
         else:
             # jobs still in progress
             log.info(
@@ -461,7 +464,7 @@ def monitor():
             )
             continue
 
-    log.info(f"Finished monitoring\n")
+    log.info("Finished monitoring\n")
 
 
 if __name__ == "__main__":
