@@ -1,6 +1,8 @@
-FROM python:3.8-alpine
+FROM python:3.12-alpine
 
 COPY ./ ./
+
+RUN apk add gcc musl-dev linux-headers python3-dev
 
 # - Install requirements
 # - Delete unnecessary Python files
@@ -9,6 +11,4 @@ RUN \
     pip install --quiet --upgrade pip && \
     pip install -r requirements.txt && \
     echo "Delete python cache directories" 1>&2 && \
-    find /usr/local/lib/python3.8 \( -iname '*.c' -o -iname '*.pxd' -o -iname '*.pyd' -o -iname '__pycache__' \) | \
-    xargs rm -rf {} && \
-    pip install -r requirements.txt
+    find /usr/local/lib/python3.12 \( -iname '*.c' -o -iname '*.pxd' -o -iname '*.pyd' -o -iname '__pycache__' \) | xargs rm -rf {}
