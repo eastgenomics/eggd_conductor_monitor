@@ -69,24 +69,34 @@ def dx_login(token):
         )
 
 
-def find_jobs() -> list:
+def find_jobs(testing_conductor_job) -> list:
     """
     Find eggd_conductor jobs that have run in the given project
     in the last 48 hours
+
+    Parameters
+    ----------
+    testing_conductor_job : str
+        Testing conductor job
 
     Returns
     -------
     jobs : list
         list of describe objects for each job
     """
-    jobs = list(
-        dx.bindings.search.find_executions(
-            project=os.environ.get("DX_PROJECT"),
-            state="done",
-            created_after="-48h",
-            describe=True,
+
+    if testing_conductor_job:
+        job = dx.DXJob(testing_conductor_job)
+        jobs = [{"id": job.id, "describe": job.describe()}]
+    else:
+        jobs = list(
+            dx.bindings.search.find_executions(
+                project=os.environ.get("DX_PROJECT"),
+                state="done",
+                created_after="-48h",
+                describe=True,
+            )
         )
-    )
 
     jobs = [
         x
@@ -336,7 +346,7 @@ def failed_run(run) -> None:
     message = (
         ":x: eggd_conductor_monitor: Automated job(s) failed processing "
         f"run *{run.get('run_id')}* from `{run.get('id')}`.\n"
-        f"Analysis project: {url}"
+        f"Analysis project: {url}?state.values=failed"
     )
 
     slack_notify(channel=channel, message=message, job_id=run["id"])
@@ -412,6 +422,8 @@ def monitor():
         "SLACK_ALERT_CHANNEL",
     ]
 
+    testing_job = os.environ.get("DX_CONDUCTOR_JOB")
+
     missing = [x for x in required if not os.environ.get(x)]
 
     if missing:
@@ -422,7 +434,7 @@ def monitor():
     # test can connect to DNAnexus
     dx_login(os.environ.get("AUTH_TOKEN"))
 
-    conductor_jobs = find_jobs()
+    conductor_jobs = find_jobs(testing_job)
     conductor_jobs = filter_notified_jobs(conductor_jobs)
     conductor_jobs = get_run_ids(conductor_jobs)
     conductor_jobs = get_launched_jobs(conductor_jobs)
