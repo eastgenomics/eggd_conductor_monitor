@@ -4,7 +4,7 @@ via Slack for any fails or when all successfully complete
 """
 
 import concurrent
-from datetime import datetime
+from datetime import timedelta
 import logging
 import os
 import re
@@ -380,16 +380,27 @@ def completed_run(run, executables, times) -> None:
     )
 
     # calculate run time of pipeline and including conductor job
-    pipeline = (
-        datetime.fromtimestamp(times[1] - times[0])
-        .strftime("%Hh%Mm")
-        .lstrip("0")
+    pipeline = timedelta(seconds=times[1]) - timedelta(seconds=times[0])
+    total = timedelta(seconds=times[1]) - timedelta(
+        seconds=run["describe"]["created"] / 1000
     )
-    total = (
-        datetime.fromtimestamp(times[1] - (run["describe"]["created"] / 1000))
-        .strftime("%Hh%Mm")
-        .lstrip("0")
-    )
+
+    times = []
+
+    for time in [pipeline, total]:
+        duration = time.total_seconds()
+
+        if duration < 3600:
+            minutes, _ = divmod(duration, 60)
+            reformatted_time = f"{int(minutes)}m"
+        else:
+            hours, remainder = divmod(duration, 3600)
+            minutes, _ = divmod(remainder, 60)
+            reformatted_time = f"{int(hours)}h{int(minutes)}m"
+
+        times.append(reformatted_time)
+
+    pipeline, total = times
 
     # build list of what has been run
     executables = "".join(
