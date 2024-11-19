@@ -342,6 +342,8 @@ def failed_run(run) -> None:
         ]
     )
 
+    url = url.replace("platform.dnanexus.com/", "platform.dnanexus.com/panx/")
+
     channel = os.environ.get("SLACK_ALERT_CHANNEL")
     message = (
         ":x: eggd_conductor_monitor: Automated job(s) failed processing "
