@@ -379,6 +379,8 @@ def completed_run(run, executables, times) -> None:
         ]
     )
 
+    url = url.replace("platform.dnanexus.com/", "platform.dnanexus.com/panx/")
+
     # calculate run time of pipeline and including conductor job
     pipeline = timedelta(seconds=times[1]) - timedelta(seconds=times[0])
     total = timedelta(seconds=times[1]) - timedelta(
