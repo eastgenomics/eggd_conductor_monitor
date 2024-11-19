@@ -1,6 +1,9 @@
 FROM python:3.12-alpine
 
-COPY ./ ./
+COPY eggd_conductor_monitor.py .
+COPY requirements.txt .
+
+RUN mkdir /logs/
 
 RUN apk add gcc musl-dev linux-headers python3-dev
 
