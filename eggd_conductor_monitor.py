@@ -206,7 +206,8 @@ def get_launched_jobs(jobs) -> list:
 
     for job in jobs:
         output = job.get("describe").get("output").get("job_ids", "")
-        job["output"] = [x for x in output.split(",") if x]
+        job["output"] = [x for x in re.split(
+            "project-[a-zA-Z0-9]+:|,", output) if x]
 
         updated_jobs.append(job)
 
