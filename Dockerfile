@@ -8,8 +8,8 @@ COPY requirements.txt .
 # - Alias command `s3_upload` to `python3 s3_upload.py` for convenience
 
 RUN \
-    mkdir /logs/ \
-    apk add gcc musl-dev linux-headers python3-dev \
+    mkdir /logs/ && \
+    apk add gcc musl-dev linux-headers python3-dev && \
     pip install --quiet --upgrade pip && \
     pip install -r requirements.txt && \
     echo "Delete python cache directories" 1>&2 && \
