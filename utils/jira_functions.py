@@ -80,30 +80,6 @@ class Jira:
 
         return response_data
 
-    def create_jira_ticket_dict(self, api_response):
-        """
-        Create a dictionary of Jira tickets with ticket ID as key and summary
-        as value
-
-        Parameters
-        ----------
-        api_response : list
-            list of tickets from Jira API response
-
-        Returns
-        -------
-        dict
-            dictionary of Jira tickets with ticket ID as key and summary
-            as value
-        """
-
-        jira_ticket_dict = {
-            ticket["id"]: ticket["fields"]["summary"]
-            for ticket in api_response
-        }
-
-        return jira_ticket_dict
-
     def filter_tickets_by_run(self, run_id, tickets) -> list:
         """
         Filter a list of tickets to find the one associated with a given run ID
