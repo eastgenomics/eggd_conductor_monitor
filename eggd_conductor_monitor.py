@@ -309,10 +309,11 @@ def jira_comment(run_id, jira_message, job_id=None) -> None:
         filtered_tickets = jira.filter_tickets_by_run(run_id, all_tickets)
 
         project_id = os.environ.get("DX_PROJECT")
-        job_url = (
-            "https://platform.dnanexus.com/panx/projects/"
-            f"{project_id.replace('project-', '')}/monitor/"
-            f"job/{job_id.replace('job-', '')}"
+        if job_id:
+            job_url = (
+                "https://platform.dnanexus.com/panx/projects/"
+                f"{project_id.replace('project-', '')}/monitor/"
+                f"job/{job_id.replace('job-', '')}"
             )
         # add comment to Jira ticket for run to link to
         # this eggd_conductor job
@@ -478,7 +479,7 @@ def completed_run(run, executables, times) -> None:
         f"completed successfully processing run {run.get('run_id')}.\n"
         f"Total elapsed time: {total}\nPipeline runtime: {pipeline}\n"
         f"Apps / workflows run: \n{jira_executables}\n"
-        f"Analysis project: http://{url}"
+        f"Analysis project: https://{url}"
     )
 
     slack_notify(channel=channel, message=message, job_id=run["id"])
