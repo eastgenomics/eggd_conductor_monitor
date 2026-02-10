@@ -19,6 +19,10 @@ Required environment variables:
 - `SLACK_TOKEN` - Slack API token
 - `SLACK_LOG_CHANNEL` - Slack channel to send succes notifications to
 - `SLACK_ALERT_CHANNEL` - Slack channel to send fail job alerts to
+- `JIRA_QUEUE_URL` - Jira Helpdesk URL
+- `JIRA_ISSUE_URL` - Jira URL to add comments to
+- `JIRA_TOKEN` - Jira token
+- `JIRA_EMAIL` - Jira email
 
 ## Usage
 
