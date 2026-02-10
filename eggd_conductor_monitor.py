@@ -16,7 +16,6 @@ from urllib3.util import Retry
 import dxpy as dx
 
 from utils.jira_functions import Jira
-from utils.assay_handler import AssayHandler
 
 log = logging.getLogger("monitor log")
 log.setLevel(logging.DEBUG)
@@ -303,7 +302,6 @@ def jira_comment(run_id, job_id) -> None:
             os.environ.get("JIRA_TOKEN"),
             os.environ.get("JIRA_EMAIL"),
         )
-        
         # get all tickets in the specified helpdesk
         all_tickets = jira.query_all_tickets()
         filtered_tickets = jira.filter_tickets_by_run(run_id, all_tickets)
@@ -311,9 +309,9 @@ def jira_comment(run_id, job_id) -> None:
         project_id = os.environ.get("DX_PROJECT")
         job_url = (
             "https://platform.dnanexus.com/panx/projects/"
-            f"{project_id.replace('project-', '')}/monitor/job/{job_id.replace('job-', '')}"
+            f"{project_id.replace('project-', '')}/monitor/"
+            f"job/{job_id.replace('job-', '')}"
             )
-        
         # add comment to Jira ticket for run to link to
         # this eggd_conductor job
         for ticket in filtered_tickets:
@@ -325,7 +323,7 @@ def jira_comment(run_id, job_id) -> None:
                 url=job_url,
                 ticket=ticket["id"],
             )
-    
+
     except Exception as err:
         log.error(f"Error in adding Jira comment for {run_id}: {err}")
 
@@ -472,7 +470,8 @@ def completed_run(run, executables, times) -> None:
 
     slack_notify(channel=channel, message=message, job_id=run["id"])
 
-    jira_comment(run_id=run["run_id"], job_id=run["id"]) 
+    jira_comment(run_id=run["run_id"], job_id=run["id"])
+
 
 def monitor():
     """
@@ -542,8 +541,9 @@ def monitor():
         else:
             # jobs still in progress
             log.info(
-                f"Jobs launched from {job['id']} have not failed or all completed"
-            )
+                f"Jobs launched from {job['id']}"
+                f"have not failed or all completed"
+                )
             continue
 
     log.info("Finished monitoring\n")
