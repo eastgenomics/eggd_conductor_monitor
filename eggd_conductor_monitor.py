@@ -283,7 +283,7 @@ def get_all_job_states(jobs) -> dict:
     return all_states_count, all_executables_count, times
 
 
-def jira_comment(run_id, jira_message, job_id=None) -> None:
+def jira_comment(run_id, jira_message, job_id) -> None:
     """
     Add comment to Jira ticket linked to the run ID
 
@@ -309,12 +309,11 @@ def jira_comment(run_id, jira_message, job_id=None) -> None:
         filtered_tickets = jira.filter_tickets_by_run(run_id, all_tickets)
 
         project_id = os.environ.get("DX_PROJECT")
-        if job_id:
-            job_url = (
-                "https://platform.dnanexus.com/panx/projects/"
-                f"{project_id.replace('project-', '')}/monitor/"
-                f"job/{job_id.replace('job-', '')}"
-            )
+        job_url = (
+            "https://platform.dnanexus.com/panx/projects/"
+            f"{project_id.replace('project-', '')}/monitor/"
+            f"job/{job_id.replace('job-', '')}"
+        )
         # add comment to Jira ticket for run to link to
         # this eggd_conductor job
         for ticket in filtered_tickets:
