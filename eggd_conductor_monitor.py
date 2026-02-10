@@ -283,7 +283,7 @@ def get_all_job_states(jobs) -> dict:
     return all_states_count, all_executables_count, times
 
 
-def jira_comment(run_id, job_id) -> None:
+def jira_comment(run_id, jira_message, job_id=None) -> None:
     """
     Add comment to Jira ticket linked to the run ID
 
@@ -291,6 +291,8 @@ def jira_comment(run_id, job_id) -> None:
     ----------
     run_id : str
         run ID to match to Jira ticket
+    jira_message : str
+        message to add to Jira comment
     job_id : str
         job ID to link to Jira ticket
     """
@@ -317,6 +319,7 @@ def jira_comment(run_id, job_id) -> None:
         for ticket in filtered_tickets:
             jira.add_comment(
                 comment=(
+                    f"{jira_message}\n"
                     "This run was processed automatically by "
                     "eggd_conductor: "
                 ),
@@ -468,9 +471,23 @@ def completed_run(run, executables, times) -> None:
         f"Analysis project: {url}"
     )
 
+    jira_executables = executables.replace(":black_small_square:", "-")
+
+    jira_message = (
+        "Eggd_conductor_monitor: All jobs "
+        f"completed successfully processing run {run.get('run_id')}.\n"
+        f"Total elapsed time: {total}\nPipeline runtime: {pipeline}\n"
+        f"Apps / workflows run: \n{jira_executables}\n"
+        f"Analysis project: http://{url}"
+    )
+
     slack_notify(channel=channel, message=message, job_id=run["id"])
 
-    jira_comment(run_id=run["run_id"], job_id=run["id"])
+    jira_comment(
+        run_id=run["run_id"],
+        jira_message=jira_message,
+        job_id=run["id"]
+    )
 
 
 def monitor():
