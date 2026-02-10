@@ -1,2 +1,4 @@
 logs/*.log
 eggd_conductor.env
+*.env
+*.venv
