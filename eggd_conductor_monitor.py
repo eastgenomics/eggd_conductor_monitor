@@ -15,6 +15,9 @@ from urllib3.util import Retry
 
 import dxpy as dx
 
+from utils.jira_functions import Jira
+from utils.assay_handler import AssayHandler
+
 log = logging.getLogger("monitor log")
 log.setLevel(logging.DEBUG)
 
@@ -281,6 +284,52 @@ def get_all_job_states(jobs) -> dict:
     return all_states_count, all_executables_count, times
 
 
+def jira_comment(run_id, job_id) -> None:
+    """
+    Add comment to Jira ticket linked to the run ID
+
+    Parameters
+    ----------
+    run_id : str
+        run ID to match to Jira ticket
+    job_id : str
+        job ID to link to Jira ticket
+    """
+    # setup the Jira client
+    try:
+        jira = Jira(
+            os.environ.get("JIRA_QUEUE_URL"),
+            os.environ.get("JIRA_ISSUE_URL"),
+            os.environ.get("JIRA_TOKEN"),
+            os.environ.get("JIRA_EMAIL"),
+        )
+        
+        # get all tickets in the specified helpdesk
+        all_tickets = jira.query_all_tickets()
+        filtered_tickets = jira.filter_tickets_by_run(run_id, all_tickets)
+
+        project_id = os.environ.get("DX_PROJECT")
+        job_url = (
+            "https://platform.dnanexus.com/panx/projects/"
+            f"{project_id.replace('project-', '')}/monitor/job/{job_id.replace('job-', '')}"
+            )
+        
+        # add comment to Jira ticket for run to link to
+        # this eggd_conductor job
+        for ticket in filtered_tickets:
+            jira.add_comment(
+                comment=(
+                    "This run was processed automatically by "
+                    "eggd_conductor: "
+                ),
+                url=job_url,
+                ticket=ticket["id"],
+            )
+    
+    except Exception as err:
+        log.error(f"Error in adding Jira comment for {run_id}: {err}")
+
+
 def slack_notify(channel, message, job_id=None) -> None:
     """
     Send notification to given Slack channel
@@ -423,6 +472,7 @@ def completed_run(run, executables, times) -> None:
 
     slack_notify(channel=channel, message=message, job_id=run["id"])
 
+    jira_comment(run_id=run["run_id"], job_id=run["id"]) 
 
 def monitor():
     """
@@ -436,6 +486,10 @@ def monitor():
         "SLACK_TOKEN",
         "SLACK_LOG_CHANNEL",
         "SLACK_ALERT_CHANNEL",
+        "JIRA_QUEUE_URL",
+        "JIRA_ISSUE_URL",
+        "JIRA_TOKEN",
+        "JIRA_EMAIL",
     ]
 
     testing_job = os.environ.get("DX_CONDUCTOR_JOB")
