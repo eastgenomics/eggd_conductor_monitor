@@ -1,7 +1,9 @@
 FROM python:3.12-alpine
 
+RUN mkdir utils/
 COPY eggd_conductor_monitor.py .
 COPY requirements.txt .
+COPY utils utils/
 
 # - Install requirements
 # - Delete unnecessary Python files
