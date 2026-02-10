@@ -541,8 +541,8 @@ def monitor():
         else:
             # jobs still in progress
             log.info(
-                f"Jobs launched from {job['id']}"
-                f"have not failed or all completed"
+                f"Jobs launched from {job['id']} "
+                "have not failed or all completed"
                 )
             continue
 
