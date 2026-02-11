@@ -474,18 +474,7 @@ def completed_run(run, executables, times) -> None:
 
     jira_executables = executables.replace(":black_small_square:", "-")
 
-    project_url = "".join(
-        [
-            x
-            for x in run["describe"]["tags"]
-            if x.startswith("platform.dnanexus.com")
-        ]
-    )
-
-    project_url = (
-        "https://"
-        + url
-    )
+    project_url = f"https://{url}"
 
     jira_message = (
         "Eggd_conductor_monitor: All jobs "
