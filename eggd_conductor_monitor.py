@@ -297,6 +297,10 @@ def jira_comment(
         message to add to Jira comment
     job_id : str
         job ID to link to Jira ticket
+    conductor_message : str
+        eggd_conductor processing message
+    project_url : str
+        url to the analysis project
     """
     # setup the Jira client
     try:
@@ -485,7 +489,7 @@ def completed_run(run, executables, times) -> None:
     )
 
     conductor_message = (
-        "\n\nThis run was processed automatically by eggd_conductor: "
+        "\nThis run was processed automatically by eggd_conductor: "
     )
 
     slack_notify(channel=channel, message=message, job_id=run["id"])
