@@ -409,6 +409,25 @@ def failed_run(run) -> None:
 
     slack_notify(channel=channel, message=message, job_id=run["id"])
 
+    jira_message = (
+        "Eggd_conductor_monitor: Automated job(s) failed processing "
+        f"run {run.get('run_id')} from {run.get('id')}.\n"
+        f"Analysis project: "
+    )
+
+    project_url = f"https://{url}?state.values=failed"
+    conductor_message = (
+        "This run was processed automatically by eggd_conductor: "
+    )
+
+    jira_comment(
+        run_id=run["run_id"],
+        jira_message=jira_message,
+        project_url=project_url,
+        conductor_message=conductor_message,
+        job_id=run["id"]
+    )
+
 
 def completed_run(run, executables, times) -> None:
     """
