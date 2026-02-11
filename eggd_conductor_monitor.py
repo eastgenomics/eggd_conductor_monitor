@@ -489,7 +489,7 @@ def completed_run(run, executables, times) -> None:
     )
 
     conductor_message = (
-        "\nThis run was processed automatically by eggd_conductor: "
+        "This run was processed automatically by eggd_conductor: "
     )
 
     slack_notify(channel=channel, message=message, job_id=run["id"])

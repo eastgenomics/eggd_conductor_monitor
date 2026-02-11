@@ -141,6 +141,7 @@ class Jira:
                                         }
                                     ],
                                 },
+                                {"type": "hardBreak"},
                                 {
                                     "text": f"{conductor_message}",
                                     "type": "text"
