@@ -100,7 +100,8 @@ class Jira:
 
         return run_tickets
 
-    def add_comment(self, comment, url, ticket=None) -> None:
+    def add_comment(self, comment, project_url, conductor_message, url,
+                    ticket=None) -> None:
         """
         Add a comment to a Jira ticket
 
@@ -129,12 +130,31 @@ class Jira:
                             "content": [
                                 {"text": f"{comment}", "type": "text"},
                                 {
+                                    "text": f"{project_url}",
+                                    "type": "text",
+                                    "marks": [
+                                        {
+                                            "type": "link",
+                                            "attrs": {
+                                                "href": f"{project_url}"
+                                            },
+                                        }
+                                    ],
+                                },
+                                {"type": "hardBreak"},
+                                {
+                                    "text": f"{conductor_message}",
+                                    "type": "text"
+                                    },
+                                {
                                     "text": f"{url}",
                                     "type": "text",
                                     "marks": [
                                         {
                                             "type": "link",
-                                            "attrs": {"href": f"{url}"},
+                                            "attrs": {
+                                                "href": f"{url}"
+                                            },
                                         }
                                     ],
                                 },
@@ -143,7 +163,10 @@ class Jira:
                     ],
                 },
                 "properties": [
-                    {"key": "sd.public.comment", "value": {"internal": True}}
+                    {
+                        "key": "sd.public.comment",
+                        "value": {"internal": True}
+                    }
                 ],
             }
         )

@@ -283,7 +283,9 @@ def get_all_job_states(jobs) -> dict:
     return all_states_count, all_executables_count, times
 
 
-def jira_comment(run_id, job_id) -> None:
+def jira_comment(
+    run_id, jira_message, job_id, conductor_message, project_url
+) -> None:
     """
     Add comment to Jira ticket linked to the run ID
 
@@ -291,8 +293,14 @@ def jira_comment(run_id, job_id) -> None:
     ----------
     run_id : str
         run ID to match to Jira ticket
+    jira_message : str
+        message to add to Jira comment
     job_id : str
         job ID to link to Jira ticket
+    conductor_message : str
+        eggd_conductor processing message
+    project_url : str
+        url to the analysis project
     """
     # setup the Jira client
     try:
@@ -311,15 +319,15 @@ def jira_comment(run_id, job_id) -> None:
             "https://platform.dnanexus.com/panx/projects/"
             f"{project_id.replace('project-', '')}/monitor/"
             f"job/{job_id.replace('job-', '')}"
-            )
+        )
+
         # add comment to Jira ticket for run to link to
         # this eggd_conductor job
         for ticket in filtered_tickets:
             jira.add_comment(
-                comment=(
-                    "This run was processed automatically by "
-                    "eggd_conductor: "
-                ),
+                comment=jira_message,
+                project_url=project_url,
+                conductor_message=conductor_message,
                 url=job_url,
                 ticket=ticket["id"],
             )
@@ -468,9 +476,31 @@ def completed_run(run, executables, times) -> None:
         f"Analysis project: {url}"
     )
 
+    jira_executables = executables.replace(":black_small_square:", "-")
+
+    project_url = f"https://{url}"
+
+    jira_message = (
+        "Eggd_conductor_monitor: All jobs "
+        f"completed successfully processing run {run.get('run_id')}.\n"
+        f"Total elapsed time: {total}\nPipeline runtime: {pipeline}\n"
+        f"Apps / workflows run: \n{jira_executables}\n"
+        f"Analysis project: "
+    )
+
+    conductor_message = (
+        "This run was processed automatically by eggd_conductor: "
+    )
+
     slack_notify(channel=channel, message=message, job_id=run["id"])
 
-    jira_comment(run_id=run["run_id"], job_id=run["id"])
+    jira_comment(
+        run_id=run["run_id"],
+        jira_message=jira_message,
+        project_url=project_url,
+        conductor_message=conductor_message,
+        job_id=run["id"]
+    )
 
 
 def monitor():
@@ -543,7 +573,7 @@ def monitor():
             log.info(
                 f"Jobs launched from {job['id']} "
                 "have not failed or all completed"
-                )
+            )
             continue
 
     log.info("Finished monitoring\n")
