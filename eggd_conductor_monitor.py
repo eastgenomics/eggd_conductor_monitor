@@ -233,16 +233,15 @@ def get_all_job_states(jobs) -> dict:
 
     Parameters
     ----------
-    jobs : list
-        list of job describe objects
+    jobs_by_project : dict
+        mapping of project IDs to job IDs
 
     Returns
     -------
-    all_states_counts : dict
-        mapping of state to total jobs
-
-    all_executables_count : dict
-        mapping of executableNames to count of each executable
+    project_states : dict
+        mapping of project to states, executables, and times
+    """
+    project_states = {}
 
     times : tuple
         first job start time and last job finished time
