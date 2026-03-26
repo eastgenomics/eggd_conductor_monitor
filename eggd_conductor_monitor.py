@@ -432,7 +432,7 @@ def failed_run(run, project) -> None:
 
     jira_message = (
         "Eggd_conductor_monitor: Automated job(s) failed processing "
-        f"run {run.get('run_id')} from {run.get('id')}.\n"
+        f"for {assay} in run {run.get('run_id')} from {run.get('id')}."
         f"Analysis project: "
     )
 
