@@ -451,7 +451,7 @@ def failed_run(run, project) -> None:
     )
 
 
-def completed_run(run, executables, times) -> None:
+def completed_run(run, executables, times, project) -> None:
     """
     Build message and sent Slack notification for completed run
 
@@ -465,6 +465,9 @@ def completed_run(run, executables, times) -> None:
 
     times : tuple
         first job start time and last job finished time
+    
+    project : str
+        analysis project ID
     """
     log.info(f"All jobs completed for run {run['run_id']}")
 
