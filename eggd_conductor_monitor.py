@@ -194,7 +194,7 @@ def get_run_ids(jobs) -> list:
     return updated_jobs
 
 
-def get_launched_jobs(jobs) -> list:
+def get_launched_jobs(jobs) -> tuple[list, dict]:
     """
     Parse out job IDs of launched jobs from eggd_conductor output
 
@@ -207,6 +207,8 @@ def get_launched_jobs(jobs) -> list:
     -------
     list
         list of job describe objects with launched jobs set to output
+    dict
+        dict of job describe objects grouped by analysis project
     """
     updated_jobs = []
 
