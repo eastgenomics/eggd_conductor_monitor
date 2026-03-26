@@ -299,7 +299,7 @@ def get_all_job_states(jobs_by_project) -> dict:
 
 
 def jira_comment(
-    run_id, jira_message, job_id, conductor_message, project_url
+    run_id, assay, jira_message, job_id, conductor_message, project_url
 ) -> None:
     """
     Add comment to Jira ticket linked to the run ID
