@@ -399,7 +399,7 @@ def slack_notify(channel, message, job_id=None) -> None:
         )
 
 
-def failed_run(run) -> None:
+def failed_run(run, project) -> None:
     """
     Build message and sent Slack notification to alert of failed job(s)
 
