@@ -580,45 +580,51 @@ def monitor():
     conductor_jobs = find_jobs(testing_job)
     conductor_jobs = filter_notified_jobs(conductor_jobs)
     conductor_jobs = get_run_ids(conductor_jobs)
-    conductor_jobs = get_launched_jobs(conductor_jobs)
+    conductor_jobs, jobs_by_project = get_launched_jobs(conductor_jobs)
 
     for job in conductor_jobs:
         # get the state of all launched analysis jobs
-        all_states, all_executables, times = get_all_job_states(job)
-        log.info(f'Current state for {job["id"]}: {all_states}')
+        project_states = get_all_job_states(jobs_by_project)
 
-        if all_states.get("failed") or all_states.get("partially failed"):
-            # something has failed => send an alert
-            failed_run(job)
+        for project, states in project_states.items():
+            all_states = states["all_states_count"]
+            all_executables = states["all_executables_count"]
+            times = states["times"]
+            log.info(f'Current state for jobs in {project}: {all_states}')
 
-        elif list(all_states.keys()) == ["done"]:
-            # everything completed with no failed jobs => send notification
-            completed_run(job, all_executables, times)
+            if all_states.get("failed") or all_states.get("partially failed"):
+                # something has failed => send an alert
+                failed_run(job, project)
 
-        elif list(all_states.keys()) == ["terminated"]:
-            # everything has been terminated => add the run ID to the
-            # notified log file to stop checking it
-            log.info(
-                f"All jobs terminated for {job['id']} => stopping monitoring"
-            )
-            with open("logs/monitor_job_ids_notified.log", "a+") as fh:
-                fh.write(f"{job['id']}\n")
+            elif set(all_states.keys()) == {"done"}:
+                # everything completed with no failed jobs => send notification
+                completed_run(job, all_executables, times, project)
 
-        elif not all_states:
-            # no job states => no launched jobs => stop monitoring
-            log.info(
-                f"No launched jobs for {job['id']} => stopping monitoring"
-            )
-            with open("logs/monitor_job_ids_notified.log", "a+") as fh:
-                fh.write(f"{job['id']}\n")
+            elif set(all_states.keys()) == {"terminated"}:
+                # everything has been terminated => add the run ID to the
+                # notified log file to stop checking it
+                log.info(
+                    f"All jobs terminated for {job['id']}"
+                    "=> stopping monitoring"
+                )
+                with open("logs/monitor_job_ids_notified.log", "a+") as fh:
+                    fh.write(f"{job['id']}\n")
 
-        else:
-            # jobs still in progress
-            log.info(
-                f"Jobs launched from {job['id']} "
-                "have not failed or all completed"
-            )
-            continue
+            elif not all_states:
+                # no job states => no launched jobs => stop monitoring
+                log.info(
+                    f"No launched jobs for {job['id']} => stopping monitoring"
+                )
+                with open("logs/monitor_job_ids_notified.log", "a+") as fh:
+                    fh.write(f"{job['id']}\n")
+
+            else:
+                # jobs still in progress
+                log.info(
+                    f"Jobs launched from {job['id']} "
+                    "have not failed or all completed"
+                )
+                continue
 
     log.info("Finished monitoring\n")
 
