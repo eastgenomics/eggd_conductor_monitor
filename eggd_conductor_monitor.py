@@ -520,7 +520,7 @@ def completed_run(run, executables, times, project) -> None:
 
     jira_executables = executables.replace(":black_small_square:", "-")
 
-    project_url = f"https://{url}"
+    project_url = f"{url}"
 
     jira_message = (
         "Eggd_conductor_monitor: All jobs "
