@@ -185,6 +185,10 @@ def get_run_ids(jobs) -> list:
         log.info(f"Found run ID {run_id} for job {job['id']}")
 
         job["run_id"] = run_id
+
+        assay = job.get("describe").get("output").get("assay_config_file_ids")
+        job["assay"] = re.findall(
+            r'file-\w+:\s*(\w+)\s*-.*?->\s*(project-\w+)', assay)
         updated_jobs.append(job)
 
     return updated_jobs
