@@ -211,6 +211,7 @@ def get_launched_jobs(jobs) -> tuple[list, dict]:
         dict of job describe objects grouped by analysis project
     """
     updated_jobs = []
+    jobs_by_project = {}
 
     for job in jobs:
         output = job.get("describe").get("output").get("job_ids", "")
@@ -219,7 +220,11 @@ def get_launched_jobs(jobs) -> tuple[list, dict]:
 
         updated_jobs.append(job)
 
-    return updated_jobs
+        for match in re.finditer(r'(project-[a-zA-Z0-9]+):([^,]+)', output):
+            project, job_id = match.groups()
+            jobs_by_project.setdefault(project, []).append(job_id)
+
+    return updated_jobs, jobs_by_project
 
 
 def get_all_job_states(jobs) -> dict:
