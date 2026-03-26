@@ -308,6 +308,8 @@ def jira_comment(
     ----------
     run_id : str
         run ID to match to Jira ticket
+    assay : str
+        assay to match to Jira ticket
     jira_message : str
         message to add to Jira comment
     job_id : str
