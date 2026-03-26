@@ -436,7 +436,7 @@ def failed_run(run, project) -> None:
         f"Analysis project: "
     )
 
-    project_url = f"https://{url}?state.values=failed"
+    project_url = f"{url}?state.values=failed"
     conductor_message = (
         "This run was processed automatically by eggd_conductor: "
     )
