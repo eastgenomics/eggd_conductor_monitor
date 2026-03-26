@@ -407,20 +407,19 @@ def failed_run(run, project) -> None:
     ----------
     run : dict
         dx describe object of given run
+    project : str
+        analysis project ID
     """
-    log.info(f"Found failed jobs for run {run['run_id']}")
 
-    # get url to downstream analysis added as tag to job
-    # filtering by beginning of url in case of multiple tags
-    url = "".join(
-        [
-            x
-            for x in run["describe"]["tags"]
-            if x.startswith("platform.dnanexus.com")
-        ]
+    assay = next((a for a, p in run['assay'] if p == project), None)
+
+    log.info(f"Found failed jobs for {assay} "
+             f"in {project} for run {run['run_id']}")
+
+    url = (
+        "https://platform.dnanexus.com/panx/projects/"
+        f"{project.replace('project-', '')}/monitor/"
     )
-
-    url = url.replace("platform.dnanexus.com/", "platform.dnanexus.com/panx/")
 
     channel = os.environ.get("SLACK_ALERT_CHANNEL")
     message = (
