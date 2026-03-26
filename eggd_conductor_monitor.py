@@ -142,7 +142,7 @@ def filter_notified_jobs(jobs) -> list:
 
 def get_run_ids(jobs) -> list:
     """
-    Get run ID for each job to know the run being processed.
+    Get run ID and assay for each job to know the run being processed.
 
     This is either parsed from the sentinel record if used, or from the
     run_id input or RunInfo.xml file
@@ -155,7 +155,7 @@ def get_run_ids(jobs) -> list:
     Returns
     -------
     list
-        list of job describe objects, including run IDs
+        list of job describe objects, including run IDs and assays
     """
     updated_jobs = []
 
