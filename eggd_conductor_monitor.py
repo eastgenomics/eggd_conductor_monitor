@@ -469,19 +469,16 @@ def completed_run(run, executables, times, project) -> None:
     project : str
         analysis project ID
     """
-    log.info(f"All jobs completed for run {run['run_id']}")
 
-    # get url to downstream analysis added as tag to job
-    # filtering by beginning of url in case of multiple tags
-    url = "".join(
-        [
-            x
-            for x in run["describe"]["tags"]
-            if x.startswith("platform.dnanexus.com")
-        ]
+    assay = next((a for a, p in run['assay'] if p == project), None)
+
+    log.info(f"All jobs completed for {assay} "
+             f"in {project} for run {run['run_id']}")
+
+    url = (
+        "https://platform.dnanexus.com/panx/projects/"
+        f"{project.replace('project-', '')}/monitor/"
     )
-
-    url = url.replace("platform.dnanexus.com/", "platform.dnanexus.com/panx/")
 
     # calculate run time of pipeline and including conductor job
     pipeline = timedelta(seconds=times[1]) - timedelta(seconds=times[0])
