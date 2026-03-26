@@ -243,54 +243,59 @@ def get_all_job_states(jobs_by_project) -> dict:
     """
     project_states = {}
 
-    times : tuple
-        first job start time and last job finished time
-    """
-    all_states = []
-    all_executables = []
-    started = []
-    stopped = []
+    for project, job_ids in jobs_by_project.items():
+        all_states = []
+        all_executables = []
+        started = []
+        stopped = []
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=32) as executor:
-        # submit query to get state of job / analysis
-        concurrent_jobs = {
-            executor.submit(dx.describe, id): id for id in jobs["output"]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=32) as executor:
+            # submit query to get state of job / analysis
+            concurrent_jobs = {
+                executor.submit(dx.describe, id): id for id in job_ids
+            }
+            for future in concurrent.futures.as_completed(concurrent_jobs):
+                # access returned output as each is returned in any order
+                try:
+                    describe = future.result()
+                    all_states.append(describe.get("state"))
+                    all_executables.append(describe.get("executableName"))
+                    started.append(describe["created"])
+                    stopped.append(describe["modified"])
+                except Exception as exc:
+                    # catch any errors that might get raised during querying
+                    log.error(
+                        f"Error getting data for "
+                        f"{concurrent_jobs[future]}: {exc}"
+                    )
+
+        # get a count of each state
+        all_states_count = {}
+        for state in set(all_states):
+            all_states_count[state] = all_states.count(state)
+
+        # get a count of each executable
+        all_executables_count = {}
+        for exe in set(all_executables):
+            all_executables_count[exe] = all_executables.count(exe)
+
+        # get earliest job start time and end time of latest running job
+        if started and stopped:
+            times = (min(started) / 1000, max(stopped) / 1000)
+        else:
+            # if querying is immediately after launching jobs (or the
+            # eggd_conductor job did not launch any jobs) then the created
+            # and modified metadata fields may be null => only calculate if
+            # something is present, else just return zeros
+            times = (0, 0)
+
+        project_states[project] = {
+            "all_states_count": all_states_count,
+            "all_executables_count": all_executables_count,
+            "times": times,
         }
-        for future in concurrent.futures.as_completed(concurrent_jobs):
-            # access returned output as each is returned in any order
-            try:
-                describe = future.result()
-                all_states.append(describe.get("state"))
-                all_executables.append(describe.get("executableName"))
-                started.append(describe["created"])
-                stopped.append(describe["modified"])
-            except Exception as exc:
-                # catch any errors that might get raised during querying
-                log.error(
-                    f"Error getting data for {concurrent_jobs[future]}: {exc}"
-                )
 
-    # get a count of each state
-    all_states_count = {}
-    for state in set(all_states):
-        all_states_count[state] = all_states.count(state)
-
-    # get a count of each executable
-    all_executables_count = {}
-    for exe in set(all_executables):
-        all_executables_count[exe] = all_executables.count(exe)
-
-    # get earliest job start time and end time of latest running job
-    if started and stopped:
-        times = (min(started) / 1000, max(stopped) / 1000)
-    else:
-        # if querying is immediately after launching jobs (or the
-        # eggd_conductor job did not launch any jobs) then the created
-        # and modified metadata fields may be null => only calculate if
-        # something is present, else just return zeros
-        times = (0, 0)
-
-    return all_states_count, all_executables_count, times
+    return project_states
 
 
 def jira_comment(
