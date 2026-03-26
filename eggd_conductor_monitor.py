@@ -539,6 +539,7 @@ def completed_run(run, executables, times, project) -> None:
 
     jira_comment(
         run_id=run["run_id"],
+        assay=assay,
         jira_message=jira_message,
         project_url=project_url,
         conductor_message=conductor_message,
