@@ -331,6 +331,11 @@ def jira_comment(
         all_tickets = jira.query_all_tickets()
         filtered_tickets = jira.filter_tickets_by_run(run_id, all_tickets)
 
+        if len(filtered_tickets) > 1:
+            filtered_tickets = jira.filter_tickets_by_assay(
+                assay, filtered_tickets
+                )
+
         project_id = os.environ.get("DX_PROJECT")
         job_url = (
             "https://platform.dnanexus.com/panx/projects/"
