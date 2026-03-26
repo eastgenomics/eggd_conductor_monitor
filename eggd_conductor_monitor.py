@@ -227,7 +227,7 @@ def get_launched_jobs(jobs) -> tuple[list, dict]:
     return updated_jobs, jobs_by_project
 
 
-def get_all_job_states(jobs) -> dict:
+def get_all_job_states(jobs_by_project) -> dict:
     """
     Get the state of all launched jobs
 
