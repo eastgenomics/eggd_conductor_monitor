@@ -424,7 +424,7 @@ def failed_run(run, project) -> None:
     channel = os.environ.get("SLACK_ALERT_CHANNEL")
     message = (
         ":x: eggd_conductor_monitor: Automated job(s) failed processing "
-        f"run *{run.get('run_id')}* from `{run.get('id')}`.\n"
+        f"for *{assay}* in run *{run.get('run_id')}* from `{run.get('id')}`.\n"
         f"Analysis project: {url}?state.values=failed"
     )
 
