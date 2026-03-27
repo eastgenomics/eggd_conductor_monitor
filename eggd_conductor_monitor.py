@@ -186,13 +186,9 @@ def get_run_ids(jobs) -> list:
 
         job["run_id"] = run_id
 
-        describe = job.get("describe") or {}
-        output = describe.get("output") or {}
-        assay = output.get("assay_config_file_ids")
-
-        if not assay:
-            # failed to correctly get assay
-            assay = "unknown"
+        describe = job.get("describe", {})
+        output = describe.get("output", {})
+        assay = output.get("assay_config_file_ids", "unknown")
 
         log.info(f"Found assay(s) {assay} for {job['id']}")
 
@@ -225,8 +221,8 @@ def get_launched_jobs(jobs) -> tuple[list, dict]:
 
     for job in jobs:
 
-        describe = job.get("describe") or {}
-        output_data = describe.get("output") or {}
+        describe = job.get("describe", {})
+        output_data = describe.get("output", {})
         output = output_data.get("job_ids", "")
 
         job["output"] = [x for x in re.split(
