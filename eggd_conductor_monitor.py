@@ -593,10 +593,10 @@ def monitor():
     conductor_jobs = filter_notified_jobs(conductor_jobs)
     conductor_jobs = get_run_ids(conductor_jobs)
     conductor_jobs, jobs_by_project = get_launched_jobs(conductor_jobs)
+    project_states = get_all_job_states(jobs_by_project)
 
     for job in conductor_jobs:
         # get the state of all launched analysis jobs
-        project_states = get_all_job_states(jobs_by_project)
 
         for project, states in project_states.items():
             all_states = states["all_states_count"]
