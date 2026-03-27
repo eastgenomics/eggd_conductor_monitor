@@ -142,7 +142,7 @@ def filter_notified_jobs(jobs) -> list:
 
 def get_run_ids(jobs) -> list:
     """
-    Get run ID and assay for each job to know the run being processed.
+    Get run ID and assay(s) for each job to know the run being processed.
 
     This is either parsed from the sentinel record if used, or from the
     run_id input or RunInfo.xml file
@@ -155,7 +155,7 @@ def get_run_ids(jobs) -> list:
     Returns
     -------
     list
-        list of job describe objects, including run IDs and assays
+        list of job describe objects, including run IDs and assay(s)
     """
     updated_jobs = []
 
@@ -194,7 +194,7 @@ def get_run_ids(jobs) -> list:
             # failed to correctly get assay
             assay = "unknown"
 
-        log.info(f"Found assay {assay} for {job['id']}")
+        log.info(f"Found assay(s) {assay} for {job['id']}")
 
         parsed_assays = re.findall(
             r'file-\w+:\s*(\w+)\s*-.*?->\s*(project-\w+)', assay)
