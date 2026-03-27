@@ -616,7 +616,7 @@ def monitor():
                 # everything has been terminated => add the run ID to the
                 # notified log file to stop checking it
                 log.info(
-                    f"All jobs terminated for {job['id']}"
+                    f"All jobs terminated for {job['id']} "
                     "=> stopping monitoring"
                 )
                 with open("logs/monitor_job_ids_notified.log", "a+") as fh:
