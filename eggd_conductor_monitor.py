@@ -422,7 +422,10 @@ def failed_run(run, project) -> None:
         analysis project ID
     """
 
-    assay = next((a for a, p in run['assay'] if p == project), "unknown")
+    assay = next(
+        (assay_type for assay_type, project_name in run['assay']
+         if project_name == project), "unknown"
+         )
 
     log.info(f"Found failed jobs for {assay} "
              f"in {project} for run {run['run_id']}")
@@ -481,7 +484,10 @@ def completed_run(run, executables, times, project) -> None:
         analysis project ID
     """
 
-    assay = next((a for a, p in run['assay'] if p == project), "unknown")
+    assay = next(
+        (assay_type for assay_type, project_name in run['assay']
+         if project_name == project), "unknown"
+         )
 
     log.info(f"All jobs completed for {assay} "
              f"in {project} for run {run['run_id']}")
