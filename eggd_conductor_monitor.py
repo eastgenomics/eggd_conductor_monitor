@@ -187,6 +187,13 @@ def get_run_ids(jobs) -> list:
         job["run_id"] = run_id
 
         assay = job.get("describe").get("output").get("assay_config_file_ids")
+
+        if not assay:
+            # failed to correctly get assay
+            assay = "unknown"
+
+        log.info(f"Found assay {assay} for {job['id']}")
+
         job["assay"] = re.findall(
             r'file-\w+:\s*(\w+)\s*-.*?->\s*(project-\w+)', assay)
         updated_jobs.append(job)
@@ -219,7 +226,7 @@ def get_launched_jobs(jobs) -> tuple[list, dict]:
             "project-[a-zA-Z0-9]+:|,", output) if x]
 
         updated_jobs.append(job)
-
+        # group jobs by project id
         for match in re.finditer(r'(project-[a-zA-Z0-9]+):([^,]+)', output):
             project, job_id = match.groups()
             jobs_by_project.setdefault(project, []).append(job_id)
@@ -331,6 +338,7 @@ def jira_comment(
         all_tickets = jira.query_all_tickets()
         filtered_tickets = jira.filter_tickets_by_run(run_id, all_tickets)
 
+        # filter by assay code if multiple tickets
         if len(filtered_tickets) > 1:
             filtered_tickets = jira.filter_tickets_by_assay(
                 assay, filtered_tickets
@@ -420,7 +428,7 @@ def failed_run(run, project) -> None:
         "https://platform.dnanexus.com/panx/projects/"
         f"{project.replace('project-', '')}/monitor/"
     )
-
+    # send Slack notification
     channel = os.environ.get("SLACK_ALERT_CHANNEL")
     message = (
         ":x: eggd_conductor_monitor: Automated job(s) failed processing "
@@ -429,7 +437,7 @@ def failed_run(run, project) -> None:
     )
 
     slack_notify(channel=channel, message=message, job_id=run["id"])
-
+    # add Jira comment
     jira_message = (
         "Eggd_conductor_monitor: Automated job(s) failed processing "
         f"for {assay} in run {run.get('run_id')} from {run.get('id')}."
@@ -465,7 +473,7 @@ def completed_run(run, executables, times, project) -> None:
 
     times : tuple
         first job start time and last job finished time
-    
+
     project : str
         analysis project ID
     """
@@ -507,7 +515,7 @@ def completed_run(run, executables, times, project) -> None:
     executables = "".join(
         [f":black_small_square: {v}x {k}\n" for k, v in executables.items()]
     )
-
+    # send Slack message
     channel = os.environ.get("SLACK_LOG_CHANNEL")
     message = (
         ":white_check_mark: eggd_conductor_monitor: All jobs "
@@ -518,6 +526,9 @@ def completed_run(run, executables, times, project) -> None:
         f"Analysis project: {url}"
     )
 
+    slack_notify(channel=channel, message=message, job_id=run["id"])
+
+    # add Jira comment
     jira_executables = executables.replace(":black_small_square:", "-")
 
     project_url = f"{url}"
@@ -534,8 +545,6 @@ def completed_run(run, executables, times, project) -> None:
     conductor_message = (
         "This run was processed automatically by eggd_conductor: "
     )
-
-    slack_notify(channel=channel, message=message, job_id=run["id"])
 
     jira_comment(
         run_id=run["run_id"],
