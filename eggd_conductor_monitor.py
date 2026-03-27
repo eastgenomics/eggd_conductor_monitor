@@ -186,7 +186,9 @@ def get_run_ids(jobs) -> list:
 
         job["run_id"] = run_id
 
-        assay = job.get("describe").get("output").get("assay_config_file_ids")
+        describe = job.get("describe") or {}
+        output = describe.get("output") or {}
+        assay = output.get("assay_config_file_ids")
 
         if not assay:
             # failed to correctly get assay
@@ -194,8 +196,9 @@ def get_run_ids(jobs) -> list:
 
         log.info(f"Found assay {assay} for {job['id']}")
 
-        job["assay"] = re.findall(
+        parsed_assays = re.findall(
             r'file-\w+:\s*(\w+)\s*-.*?->\s*(project-\w+)', assay)
+        job["assay"] = parsed_assays if parsed_assays else [("unknown", "")]
         updated_jobs.append(job)
 
     return updated_jobs
