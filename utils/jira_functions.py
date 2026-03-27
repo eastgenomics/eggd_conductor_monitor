@@ -119,7 +119,8 @@ class Jira:
 
         assay_tickets = [
             x for x in tickets
-            if x["fields"]["customfield_10070"][0]["value"] in assay
+            if x.get("fields", {}).get("customfield_10070")
+            and x["fields"]["customfield_10070"][0].get("value", "") in assay
             ]
 
         return assay_tickets
