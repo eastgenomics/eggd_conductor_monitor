@@ -140,6 +140,35 @@ def filter_notified_jobs(jobs) -> list:
     return [x for x in jobs if x["id"] not in notified_jobs]
 
 
+def filter_notified_projects(job, projects) -> list:
+    """
+    Filter out project IDs of runs already notified
+
+    Parameters
+    ----------
+    job : list
+        job describe object
+    projects : list
+        list of project IDs
+
+    Returns
+    -------
+    list
+        list of project IDs where no Slack notification has been sent
+    """
+    with open("logs/monitor_project_ids_notified.log", "a+") as fh:
+        fh.seek(0)
+        notified = fh.read().splitlines()
+
+    if notified:
+        log.info(
+            "Projects already notified via Slack or not to notify: "
+            f"{os.linesep}{notified}"
+        )
+
+    return [x for x in projects if f"{job["id"]}:{x}" in notified]
+
+
 def get_run_ids(jobs) -> list:
     """
     Get run ID and assay(s) for each job to know the run being processed.
