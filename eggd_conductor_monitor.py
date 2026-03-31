@@ -281,6 +281,7 @@ def get_all_job_states(jobs_by_project) -> dict:
         mapping of project to states, executables, and times
     """
     project_states = {}
+    total_states = {}
 
     for project, job_ids in jobs_by_project.items():
         all_states = []
@@ -334,7 +335,10 @@ def get_all_job_states(jobs_by_project) -> dict:
             "times": times,
         }
 
-    return project_states
+        for state, count in all_states_count.items():
+            total_states[state] = total_states.get(state, 0) + count
+
+    return project_states, total_states
 
 
 def jira_comment(
