@@ -388,10 +388,19 @@ def jira_comment(
             f"job/{job_id.replace('job-', '')}"
         )
 
+        if len(filtered_tickets) != 1:
+            # send Slack notification
+            channel = os.environ.get("SLACK_ALERT_CHANNEL")
+            message = (
+                ":x: eggd_conductor_monitor: Error finding Jira ticket "
+                f"for run *{run_id}* and *{assay}* assay: "
+                f"found {len(filtered_tickets)} matching tickets.")
+            slack_notify(channel=channel, message=message)
+
         # add comment to Jira ticket for run to link to
         # this eggd_conductor job
-        for ticket in filtered_tickets:
-            if len(filtered_tickets) == 1:
+        elif len(filtered_tickets) == 1:
+            for ticket in filtered_tickets:
                 log.info(
                     f"Adding comment to Jira ticket {ticket['id']} "
                     f"for run {run_id}"
@@ -403,15 +412,6 @@ def jira_comment(
                     url=job_url,
                     ticket=ticket["id"],
                  )
-
-        if len(filtered_tickets) != 1:
-            # send Slack notification
-            channel = os.environ.get("SLACK_ALERT_CHANNEL")
-            message = (
-                ":x: eggd_conductor_monitor: Error finding Jira ticket "
-                f"for run *{run_id}* and *{assay}* assay: "
-                f"found {len(filtered_tickets)} matching tickets.")
-            slack_notify(channel=channel, message=message)
 
     except Exception as err:
         log.error(f"Error in adding Jira comment for {run_id}: {err}")
