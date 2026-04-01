@@ -490,7 +490,8 @@ def failed_run(run, project) -> None:
         f"Analysis project: {url}?state.values=failed"
     )
 
-    slack_notify(channel=channel, message=message, job_id=run["id"])
+    slack_notify(channel=channel, message=message)
+
     # add Jira comment
     jira_message = (
         "Eggd_conductor_monitor: Automated job(s) failed processing "
@@ -583,7 +584,7 @@ def completed_run(run, executables, times, project) -> None:
         f"Analysis project: {url}"
     )
 
-    slack_notify(channel=channel, message=message, job_id=run["id"])
+    slack_notify(channel=channel, message=message)
 
     # add Jira comment
     jira_executables = executables.replace(":black_small_square:", "-")
@@ -675,15 +676,19 @@ def monitor():
 
             # something has failed => send an alert
             if state.get("failed") or state.get("partially failed"):
-                failed_run(job, project)
-                with open("logs/monitor_project_ids_notified.log", "a+") as fh:
-                    fh.write(f"{job["id"]}:{project}\n")
+                if failed_run(job, project):
+                    with open(
+                        "logs/monitor_project_ids_notified.log", "a+"
+                            ) as fh:
+                        fh.write(f"{job['id']}:{project}\n")
 
             # everything completed with no failed jobs => send notification
             elif set(state.keys()) == {"done"}:
-                completed_run(job, executables, times, project)
-                with open("logs/monitor_project_ids_notified.log", "a+") as fh:
-                    fh.write(f"{job["id"]}:{project}\n")
+                if completed_run(job, executables, times, project):
+                    with open(
+                        "logs/monitor_project_ids_notified.log", "a+"
+                            ) as fh:
+                        fh.write(f"{job['id']}:{project}\n")
 
             # everything has been terminated for that project =>
             # stop monitoring
