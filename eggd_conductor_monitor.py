@@ -390,7 +390,7 @@ def jira_comment(
         log.error(f"Error in adding Jira comment for {run_id}: {err}")
 
 
-def slack_notify(channel, message, job_id=None) -> None:
+def slack_notify(channel, message, job_id=None, project=None) -> None:
     """
     Send notification to given Slack channel
 
@@ -402,6 +402,8 @@ def slack_notify(channel, message, job_id=None) -> None:
         message to send to Slack
     job_id : str
         DNAnexus ID of eggd_conductor job
+    project : str
+        DNAnexus ID of analysis project
     """
     log.info(f"Sending message to {channel}")
     slack_token = os.environ.get("SLACK_TOKEN")
@@ -424,7 +426,7 @@ def slack_notify(channel, message, job_id=None) -> None:
             # log job ID to know we sent an alert for it and not send another
             if job_id:
                 with open("logs/monitor_project_ids_notified.log", "a+") as fh:
-                    fh.write(f"{job_id}\n")
+                    fh.write(f"{job_id}:{project}\n")
     except Exception as err:
         log.error(
             f"Error in sending post request for slack notification: {err}"
@@ -679,8 +681,12 @@ def monitor():
                     f"All jobs finished for {job['id']} => stopping monitoring"
                 )
 
-            with open("logs/monitor_project_ids_notified.log", "a+") as fh:
-                fh.write(f"{job['id']}\n")
+            for project, states in project_states.items():
+                entry = f"{job['id']}:{project}"
+                with open("logs/monitor_project_ids_notified.log", "a+") as fh:
+                    fh.seek(0)
+                    if entry not in fh.read().splitlines():
+                        fh.write(f"{job['id']}:{project}\n")
 
         elif not total_states:
             # no job states => no launched jobs => stop monitoring
@@ -688,7 +694,7 @@ def monitor():
                 f"No launched jobs for {job['id']} => stopping monitoring"
             )
             with open("logs/monitor_project_ids_notified.log", "a+") as fh:
-                fh.write(f"{job['id']}\n")
+                fh.write(f"{job['id']}:{project}\n")
 
         else:
             # jobs still in progress
