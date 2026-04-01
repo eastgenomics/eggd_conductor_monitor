@@ -625,8 +625,8 @@ def monitor():
     finished_states = {"done", "failed", "partially failed", "terminated"}
 
     for job in conductor_jobs:
-        # get the state of all launched analysis jobs
-        conductor_jobs, jobs_by_project = get_launched_jobs(conductor_jobs)
+        # get the state of all launched analysis jobs for given conductor job
+        _, jobs_by_project = get_launched_jobs(conductor_jobs)
         project_states, total_states = get_all_job_states(jobs_by_project)
 
         log.info(f"Current state(s) for {job['id']}: {total_states}")
