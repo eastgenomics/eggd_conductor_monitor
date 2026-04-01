@@ -7,6 +7,7 @@ import concurrent
 import concurrent.futures
 from datetime import timedelta
 import logging
+import logging.handlers
 import os
 import re
 from requests import Session
@@ -275,8 +276,12 @@ def get_all_job_states(jobs_by_project) -> dict:
                     describe = future.result()
                     all_states.append(describe.get("state"))
                     all_executables.append(describe.get("executableName"))
-                    started.append(describe["created"])
-                    stopped.append(describe["modified"])
+                    created = describe.get("created")
+                    modified = describe.get("modified")
+                    if created is not None:
+                        started.append(created)
+                    if modified is not None:
+                        stopped.append(modified)
                 except Exception as exc:
                     # catch any errors that might get raised during querying
                     log.error(
