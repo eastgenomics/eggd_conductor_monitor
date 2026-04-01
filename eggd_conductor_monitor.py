@@ -167,7 +167,7 @@ def filter_notified_projects(job, projects) -> list:
             f"{os.linesep}{notified}"
         )
 
-    return [x for x in projects if f"{job["id"]}:{x}" in notified]
+    return [x for x in projects if f"{job['id']}:{x}" in notified]
 
 
 def get_run_ids(jobs) -> list:
@@ -654,7 +654,7 @@ def monitor():
     for job in conductor_jobs:
         # get the state of all launched analysis jobs
 
-        log.info(f'Current state for {job["id"]}: {total_states}')
+        log.info(f'Current state for {job['id']}: {total_states}')
 
         notified = filter_notified_projects(
             job, project_states.keys())
@@ -691,7 +691,7 @@ def monitor():
                 log.info(f"All jobs terminated for {project} "
                          f"=> stopping monitoring")
                 with open("logs/monitor_project_ids_notified.log", "a+") as fh:
-                    fh.write(f"{job["id"]}:{project}\n")
+                    fh.write(f"{job['id']}:{project}\n")
 
         if set(total_states.keys()).issubset(finished_states):
             # everything has been terminated => add the run ID to the
