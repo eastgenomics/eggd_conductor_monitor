@@ -424,7 +424,7 @@ def slack_notify(channel, message, job_id=None) -> None:
         else:
             # log job ID to know we sent an alert for it and not send another
             if job_id:
-                with open("logs/monitor_job_ids_notified.log", "a+") as fh:
+                with open("logs/monitor_project_ids_notified.log", "a+") as fh:
                     fh.write(f"{job_id}\n")
     except Exception as err:
         log.error(
@@ -629,7 +629,7 @@ def monitor():
     for job in conductor_jobs:
         # get the state of all launched analysis jobs
 
-        log.info(f'Current state for {job['id']}: {total_states}')
+        log.info(f"Current state(s) for {job['id']}: {total_states}")
 
         notified = filter_notified_projects(
             job, project_states.keys())
@@ -646,23 +646,19 @@ def monitor():
             state = states["all_states_count"]
             executables = states["all_executables_count"]
             times = states["times"]
-            log.info(f'Current state for {project}: {state}')
+            log.info(f"Current state for {project} in {job['id']}: {state}")
 
             # something has failed => send an alert
             if state.get("failed") or state.get("partially failed"):
-                if failed_run(job, project):
-                    with open(
-                        "logs/monitor_project_ids_notified.log", "a+"
-                            ) as fh:
-                        fh.write(f"{job['id']}:{project}\n")
+                failed_run(job, project)
+                with open("logs/monitor_project_ids_notified.log", "a+") as fh:
+                    fh.write(f"{job['id']}:{project}\n")
 
             # everything completed with no failed jobs => send notification
             elif set(state.keys()) == {"done"}:
-                if completed_run(job, executables, times, project):
-                    with open(
-                        "logs/monitor_project_ids_notified.log", "a+"
-                            ) as fh:
-                        fh.write(f"{job['id']}:{project}\n")
+                completed_run(job, executables, times, project)
+                with open("logs/monitor_project_ids_notified.log", "a+") as fh:
+                    fh.write(f"{job['id']}:{project}\n")
 
             # everything has been terminated for that project =>
             # stop monitoring
@@ -685,7 +681,7 @@ def monitor():
                     f"All jobs finished for {job['id']} => stopping monitoring"
                 )
 
-            with open("logs/monitor_job_ids_notified.log", "a+") as fh:
+            with open("logs/monitor_project_ids_notified.log", "a+") as fh:
                 fh.write(f"{job['id']}\n")
 
         elif not total_states:
@@ -693,7 +689,7 @@ def monitor():
             log.info(
                 f"No launched jobs for {job['id']} => stopping monitoring"
             )
-            with open("logs/monitor_job_ids_notified.log", "a+") as fh:
+            with open("logs/monitor_project_ids_notified.log", "a+") as fh:
                 fh.write(f"{job['id']}\n")
 
         else:
