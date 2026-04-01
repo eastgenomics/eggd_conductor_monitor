@@ -619,7 +619,6 @@ def monitor():
     dx_login(os.environ.get("AUTH_TOKEN"))
 
     conductor_jobs = find_jobs(testing_job)
-    conductor_jobs = filter_notified_jobs(conductor_jobs)
     conductor_jobs = get_run_ids(conductor_jobs)
     conductor_jobs, jobs_by_project = get_launched_jobs(conductor_jobs)
     project_states, total_states = get_all_job_states(jobs_by_project)
@@ -631,7 +630,7 @@ def monitor():
 
         log.info(f"Current state(s) for {job['id']}: {total_states}")
 
-        notified = filter_notified_projects(
+        unnotified = filter_notified_projects(
             job, project_states.keys())
 
         # check the state of each project with launched jobs and notify
