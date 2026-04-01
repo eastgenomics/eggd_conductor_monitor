@@ -141,7 +141,7 @@ def filter_notified_projects(job, projects) -> list:
             f"{os.linesep}{notified}"
         )
 
-    return [x for x in projects if f"{job['id']}:{x}" in notified]
+    return [x for x in projects if f"{job['id']}:{x}" not in notified]
 
 
 def get_run_ids(jobs) -> list:
@@ -636,7 +636,7 @@ def monitor():
 
         # check the state of each project with launched jobs and notify
         for project, states in project_states.items():
-            if project in notified:
+            if project not in unnotified:
                 log.info(
                     f"Already sent notification for {project} "
                     f"=> skipping project"
