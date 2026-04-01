@@ -668,7 +668,14 @@ def monitor():
                 with open("logs/monitor_project_ids_notified.log", "a+") as fh:
                     fh.write(f"{job['id']}:{project}\n")
 
-        if set(total_states.keys()).issubset(finished_states):
+        if not total_states:
+            # no job states => no launched jobs => stop monitoring
+            log.info(
+                f"No launched jobs for {job['id']} => stopping monitoring"
+            )
+            continue
+
+        elif set(total_states.keys()).issubset(finished_states):
             # everything has been terminated => add the run ID to the
             # notified log file to stop checking it
             if set(total_states.keys()) == {"terminated"}:
@@ -680,21 +687,6 @@ def monitor():
                 log.info(
                     f"All jobs finished for {job['id']} => stopping monitoring"
                 )
-
-            for project, states in project_states.items():
-                entry = f"{job['id']}:{project}"
-                with open("logs/monitor_project_ids_notified.log", "a+") as fh:
-                    fh.seek(0)
-                    if entry not in fh.read().splitlines():
-                        fh.write(f"{job['id']}:{project}\n")
-
-        elif not total_states:
-            # no job states => no launched jobs => stop monitoring
-            log.info(
-                f"No launched jobs for {job['id']} => stopping monitoring"
-            )
-            with open("logs/monitor_project_ids_notified.log", "a+") as fh:
-                fh.write(f"{job['id']}:{project}\n")
 
         else:
             # jobs still in progress
