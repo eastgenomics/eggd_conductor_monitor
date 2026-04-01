@@ -626,7 +626,7 @@ def monitor():
 
     for job in conductor_jobs:
         # get the state of all launched analysis jobs for given conductor job
-        _, jobs_by_project = get_launched_jobs(conductor_jobs)
+        _, jobs_by_project = get_launched_jobs([job])
         project_states, total_states = get_all_job_states(jobs_by_project)
 
         log.info(f"Current state(s) for {job['id']}: {total_states}")
