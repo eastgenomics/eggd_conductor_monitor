@@ -165,6 +165,7 @@ def get_run_ids(jobs) -> list:
 
     for job in jobs:
         job_input = job.get("describe", {}).get("originalInput", {})
+        run_id = ""
 
         run_id_matches = [
             re.search(r"run_id", ele, re.IGNORECASE) for ele in job_input
@@ -180,7 +181,6 @@ def get_run_ids(jobs) -> list:
             run_id = job_input.get(
                 [match.group(0) for match in run_id_matches if match][0]
             )
-            continue
 
         if not run_id:
             # failed to correctly get run id
