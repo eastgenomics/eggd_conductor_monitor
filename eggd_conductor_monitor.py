@@ -4,8 +4,10 @@ via Slack for any fails or when all successfully complete
 """
 
 import concurrent
+import concurrent.futures
 from datetime import timedelta
 import logging
+import logging.handlers
 import os
 import re
 from requests import Session
@@ -114,35 +116,38 @@ def find_jobs(testing_conductor_job) -> list:
     return jobs
 
 
-def filter_notified_jobs(jobs) -> list:
+def filter_notified_projects(job, projects) -> list:
     """
-    Filter out job IDs of runs already notified
+    Filter out project IDs of runs already notified
 
     Parameters
     ----------
-    jobs : list
-        list of job describe objects
+    job : dict
+        job describe object
+    projects : list
+        list of project IDs
 
     Returns
     -------
     list
-        list of job describe objects where no Slack notification has been sent
+        list of project IDs where no Slack notification has been sent
     """
-    with open("logs/monitor_job_ids_notified.log", "a+") as fh:
+    with open("logs/monitor_project_ids_notified.log", "a+") as fh:
         fh.seek(0)
-        notified_jobs = fh.read().splitlines()
+        notified = fh.read().splitlines()
 
-    log.info(
-        "Jobs already notified via Slack or not to notify: "
-        f"{os.linesep}{notified_jobs}"
-    )
+    if notified:
+        log.info(
+            "Projects already notified via Slack or not to notify: "
+            f"{os.linesep}{notified}"
+        )
 
-    return [x for x in jobs if x["id"] not in notified_jobs]
+    return [x for x in projects if f"{job['id']}:{x}" not in notified]
 
 
 def get_run_ids(jobs) -> list:
     """
-    Get run ID for each job to know the run being processed.
+    Get run ID and assay(s) for each job to know the run being processed.
 
     This is either parsed from the sentinel record if used, or from the
     run_id input or RunInfo.xml file
@@ -155,12 +160,13 @@ def get_run_ids(jobs) -> list:
     Returns
     -------
     list
-        list of job describe objects, including run IDs
+        list of job describe objects, including run IDs and assay(s)
     """
     updated_jobs = []
 
     for job in jobs:
         job_input = job.get("describe", {}).get("originalInput", {})
+        run_id = ""
 
         run_id_matches = [
             re.search(r"run_id", ele, re.IGNORECASE) for ele in job_input
@@ -176,7 +182,6 @@ def get_run_ids(jobs) -> list:
             run_id = job_input.get(
                 [match.group(0) for match in run_id_matches if match][0]
             )
-            continue
 
         if not run_id:
             # failed to correctly get run id
@@ -185,12 +190,22 @@ def get_run_ids(jobs) -> list:
         log.info(f"Found run ID {run_id} for job {job['id']}")
 
         job["run_id"] = run_id
+
+        describe = job.get("describe", {})
+        output = describe.get("output", {})
+        assay = output.get("assay_config_file_ids", "unknown")
+
+        log.info(f"Found assay(s) {assay} for {job['id']}")
+
+        parsed_assays = re.findall(
+            r'file-\w+:\s*(\w+)\s*-.*?->\s*(project-\w+)', assay)
+        job["assay"] = parsed_assays if parsed_assays else [("unknown", "")]
         updated_jobs.append(job)
 
     return updated_jobs
 
 
-def get_launched_jobs(jobs) -> list:
+def get_launched_jobs(jobs) -> tuple[list, dict]:
     """
     Parse out job IDs of launched jobs from eggd_conductor output
 
@@ -203,88 +218,111 @@ def get_launched_jobs(jobs) -> list:
     -------
     list
         list of job describe objects with launched jobs set to output
+    dict
+        dict of job describe objects grouped by analysis project
     """
     updated_jobs = []
+    jobs_by_project = {}
 
     for job in jobs:
-        output = job.get("describe").get("output").get("job_ids", "")
+
+        describe = job.get("describe", {})
+        output_data = describe.get("output", {})
+        output = output_data.get("job_ids", "")
+
         job["output"] = [x for x in re.split(
             "project-[a-zA-Z0-9]+:|,", output) if x]
 
         updated_jobs.append(job)
+        # group jobs by project id
+        for match in re.finditer(r'(project-[a-zA-Z0-9]+):([^,]+)', output):
+            project, job_id = match.groups()
+            jobs_by_project.setdefault(project, []).append(job_id)
 
-    return updated_jobs
+    return updated_jobs, jobs_by_project
 
 
-def get_all_job_states(jobs) -> dict:
+def get_all_job_states(jobs_by_project) -> dict:
     """
     Get the state of all launched jobs
 
     Parameters
     ----------
-    jobs : list
-        list of job describe objects
+    jobs_by_project : dict
+        mapping of project IDs to job IDs
 
     Returns
     -------
-    all_states_counts : dict
-        mapping of state to total jobs
-
-    all_executables_count : dict
-        mapping of executableNames to count of each executable
-
-    times : tuple
-        first job start time and last job finished time
+    project_states : dict
+        mapping of project to states, executables, and times
     """
-    all_states = []
-    all_executables = []
-    started = []
-    stopped = []
+    project_states = {}
+    total_states = {}
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=32) as executor:
-        # submit query to get state of job / analysis
-        concurrent_jobs = {
-            executor.submit(dx.describe, id): id for id in jobs["output"]
+    for project, job_ids in jobs_by_project.items():
+        all_states = []
+        all_executables = []
+        started = []
+        stopped = []
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=32) as executor:
+            # submit query to get state of job / analysis
+            concurrent_jobs = {
+                executor.submit(dx.describe, id): id for id in job_ids
+            }
+            for future in concurrent.futures.as_completed(concurrent_jobs):
+                # access returned output as each is returned in any order
+                try:
+                    describe = future.result()
+                    all_states.append(describe.get("state"))
+                    all_executables.append(describe.get("executableName"))
+                    created = describe.get("created")
+                    modified = describe.get("modified")
+                    if created is not None:
+                        started.append(created)
+                    if modified is not None:
+                        stopped.append(modified)
+                except Exception as exc:
+                    # catch any errors that might get raised during querying
+                    log.error(
+                        f"Error getting data for "
+                        f"{concurrent_jobs[future]}: {exc}"
+                    )
+
+        # get a count of each state
+        all_states_count = {}
+        for state in set(all_states):
+            all_states_count[state] = all_states.count(state)
+
+        # get a count of each executable
+        all_executables_count = {}
+        for exe in set(all_executables):
+            all_executables_count[exe] = all_executables.count(exe)
+
+        # get earliest job start time and end time of latest running job
+        if started and stopped:
+            times = (min(started) / 1000, max(stopped) / 1000)
+        else:
+            # if querying is immediately after launching jobs (or the
+            # eggd_conductor job did not launch any jobs) then the created
+            # and modified metadata fields may be null => only calculate if
+            # something is present, else just return zeros
+            times = (0, 0)
+
+        project_states[project] = {
+            "all_states_count": all_states_count,
+            "all_executables_count": all_executables_count,
+            "times": times,
         }
-        for future in concurrent.futures.as_completed(concurrent_jobs):
-            # access returned output as each is returned in any order
-            try:
-                describe = future.result()
-                all_states.append(describe.get("state"))
-                all_executables.append(describe.get("executableName"))
-                started.append(describe["created"])
-                stopped.append(describe["modified"])
-            except Exception as exc:
-                # catch any errors that might get raised during querying
-                log.error(
-                    f"Error getting data for {concurrent_jobs[future]}: {exc}"
-                )
 
-    # get a count of each state
-    all_states_count = {}
-    for state in set(all_states):
-        all_states_count[state] = all_states.count(state)
+        for state, count in all_states_count.items():
+            total_states[state] = total_states.get(state, 0) + count
 
-    # get a count of each executable
-    all_executables_count = {}
-    for exe in set(all_executables):
-        all_executables_count[exe] = all_executables.count(exe)
-
-    # get earliest job start time and end time of latest running job
-    if started and stopped:
-        times = (min(started) / 1000, max(stopped) / 1000)
-    else:
-        # if querying is immediately after launching jobs (or the
-        # eggd_conductor job did not launch any jobs) then the created
-        # and modified metadata fields may be null => only calculate if
-        # something is present, else just return zeros
-        times = (0, 0)
-
-    return all_states_count, all_executables_count, times
+    return project_states, total_states
 
 
 def jira_comment(
-    run_id, jira_message, job_id, conductor_message, project_url
+    run_id, assay, jira_message, job_id, conductor_message, project_url
 ) -> None:
     """
     Add comment to Jira ticket linked to the run ID
@@ -293,6 +331,8 @@ def jira_comment(
     ----------
     run_id : str
         run ID to match to Jira ticket
+    assay : str
+        assay to match to Jira ticket
     jira_message : str
         message to add to Jira comment
     job_id : str
@@ -314,6 +354,11 @@ def jira_comment(
         all_tickets = jira.query_all_tickets()
         filtered_tickets = jira.filter_tickets_by_run(run_id, all_tickets)
 
+        # filter by assay code if multiple tickets
+
+        filtered_tickets = jira.filter_tickets_by_assay(
+            assay, filtered_tickets)
+
         project_id = os.environ.get("DX_PROJECT")
         job_url = (
             "https://platform.dnanexus.com/panx/projects/"
@@ -321,22 +366,36 @@ def jira_comment(
             f"job/{job_id.replace('job-', '')}"
         )
 
+        if len(filtered_tickets) != 1:
+            # send Slack notification
+            channel = os.environ.get("SLACK_ALERT_CHANNEL")
+            message = (
+                ":x: eggd_conductor_monitor: Error finding Jira ticket "
+                f"for run *{run_id}* and *{assay}* assay: "
+                f"found {len(filtered_tickets)} matching tickets.")
+            slack_notify(channel=channel, message=message)
+
         # add comment to Jira ticket for run to link to
         # this eggd_conductor job
-        for ticket in filtered_tickets:
-            jira.add_comment(
-                comment=jira_message,
-                project_url=project_url,
-                conductor_message=conductor_message,
-                url=job_url,
-                ticket=ticket["id"],
-            )
+        else:
+            for ticket in filtered_tickets:
+                log.info(
+                    f"Adding comment to Jira ticket {ticket['id']} "
+                    f"for run {run_id}"
+                )
+                jira.add_comment(
+                    comment=jira_message,
+                    project_url=project_url,
+                    conductor_message=conductor_message,
+                    url=job_url,
+                    ticket=ticket["id"],
+                 )
 
     except Exception as err:
         log.error(f"Error in adding Jira comment for {run_id}: {err}")
 
 
-def slack_notify(channel, message, job_id=None) -> None:
+def slack_notify(channel, message, job_id=None, project=None) -> None:
     """
     Send notification to given Slack channel
 
@@ -348,12 +407,14 @@ def slack_notify(channel, message, job_id=None) -> None:
         message to send to Slack
     job_id : str
         DNAnexus ID of eggd_conductor job
+    project : str
+        DNAnexus ID of analysis project
     """
     log.info(f"Sending message to {channel}")
     slack_token = os.environ.get("SLACK_TOKEN")
 
     http = Session()
-    retries = Retry(total=5, backoff_factor=10, method_whitelist=["POST"])
+    retries = Retry(total=5, backoff_factor=10, allowed_methods=["POST"])
     http.mount("https://", HTTPAdapter(max_retries=retries))
     try:
         response = http.post(
@@ -369,15 +430,15 @@ def slack_notify(channel, message, job_id=None) -> None:
         else:
             # log job ID to know we sent an alert for it and not send another
             if job_id:
-                with open("logs/monitor_job_ids_notified.log", "a+") as fh:
-                    fh.write(f"{job_id}\n")
+                with open("logs/monitor_project_ids_notified.log", "a+") as fh:
+                    fh.write(f"{job_id}:{project}\n")
     except Exception as err:
         log.error(
             f"Error in sending post request for slack notification: {err}"
         )
 
 
-def failed_run(run) -> None:
+def failed_run(run, project) -> None:
     """
     Build message and sent Slack notification to alert of failed job(s)
 
@@ -385,43 +446,47 @@ def failed_run(run) -> None:
     ----------
     run : dict
         dx describe object of given run
+    project : str
+        analysis project ID
     """
-    log.info(f"Found failed jobs for run {run['run_id']}")
 
-    # get url to downstream analysis added as tag to job
-    # filtering by beginning of url in case of multiple tags
-    url = "".join(
-        [
-            x
-            for x in run["describe"]["tags"]
-            if x.startswith("platform.dnanexus.com")
-        ]
+    assay = next(
+        (assay_type for assay_type, project_name in run['assay']
+         if project_name == project), "unknown"
+         )
+
+    log.info(f"Found failed jobs for {assay} "
+             f"in {project} for run {run['run_id']}")
+
+    url = (
+        "https://platform.dnanexus.com/panx/projects/"
+        f"{project.replace('project-', '')}/monitor/"
     )
-
-    url = url.replace("platform.dnanexus.com/", "platform.dnanexus.com/panx/")
-
+    # send Slack notification
     channel = os.environ.get("SLACK_ALERT_CHANNEL")
     message = (
         ":x: eggd_conductor_monitor: Automated job(s) failed processing "
-        f"run *{run.get('run_id')}* from `{run.get('id')}`.\n"
+        f"for *{assay}* in run *{run.get('run_id')}* from `{run.get('id')}`.\n"
         f"Analysis project: {url}?state.values=failed"
     )
 
-    slack_notify(channel=channel, message=message, job_id=run["id"])
+    slack_notify(channel=channel, message=message)
 
+    # add Jira comment
     jira_message = (
         "Eggd_conductor_monitor: Automated job(s) failed processing "
-        f"run {run.get('run_id')} from {run.get('id')}.\n"
+        f"for {assay} in run {run.get('run_id')} from {run.get('id')}.\n"
         f"Analysis project: "
     )
 
-    project_url = f"https://{url}?state.values=failed"
+    project_url = f"{url}?state.values=failed"
     conductor_message = (
         "This run was processed automatically by eggd_conductor: "
     )
 
     jira_comment(
         run_id=run["run_id"],
+        assay=assay,
         jira_message=jira_message,
         project_url=project_url,
         conductor_message=conductor_message,
@@ -429,7 +494,7 @@ def failed_run(run) -> None:
     )
 
 
-def completed_run(run, executables, times) -> None:
+def completed_run(run, executables, times, project) -> None:
     """
     Build message and sent Slack notification for completed run
 
@@ -443,20 +508,23 @@ def completed_run(run, executables, times) -> None:
 
     times : tuple
         first job start time and last job finished time
+
+    project : str
+        analysis project ID
     """
-    log.info(f"All jobs completed for run {run['run_id']}")
 
-    # get url to downstream analysis added as tag to job
-    # filtering by beginning of url in case of multiple tags
-    url = "".join(
-        [
-            x
-            for x in run["describe"]["tags"]
-            if x.startswith("platform.dnanexus.com")
-        ]
+    assay = next(
+        (assay_type for assay_type, project_name in run['assay']
+         if project_name == project), "unknown"
+         )
+
+    log.info(f"All jobs completed for {assay} "
+             f"in {project} for run {run['run_id']}")
+
+    url = (
+        "https://platform.dnanexus.com/panx/projects/"
+        f"{project.replace('project-', '')}/monitor/"
     )
-
-    url = url.replace("platform.dnanexus.com/", "platform.dnanexus.com/panx/")
 
     # calculate run time of pipeline and including conductor job
     pipeline = timedelta(seconds=times[1]) - timedelta(seconds=times[0])
@@ -485,25 +553,30 @@ def completed_run(run, executables, times) -> None:
     executables = "".join(
         [f":black_small_square: {v}x {k}\n" for k, v in executables.items()]
     )
-
+    # send Slack message
     channel = os.environ.get("SLACK_LOG_CHANNEL")
     message = (
         ":white_check_mark: eggd_conductor_monitor: All jobs "
-        f"completed successfully processing run *{run.get('run_id')}*.\n"
+        f"completed successfully processing "
+        f"for *{assay}* in run *{run.get('run_id')}*.\n"
         f"Total elapsed time: *{total}*\nPipeline runtime: *{pipeline}*\n"
         f"Apps / workflows run: \n{executables}\n"
         f"Analysis project: {url}"
     )
 
+    slack_notify(channel=channel, message=message)
+
+    # add Jira comment
     jira_executables = executables.replace(":black_small_square:", "-")
 
-    project_url = f"https://{url}"
+    project_url = f"{url}"
 
     jira_message = (
         "Eggd_conductor_monitor: All jobs "
-        f"completed successfully processing run {run.get('run_id')}.\n"
+        f"completed successfully processing "
+        f"for {assay} in run {run.get('run_id')}.\n"
         f"Total elapsed time: {total}\nPipeline runtime: {pipeline}\n"
-        f"Apps / workflows run: \n{jira_executables}\n"
+        f"Apps / workflows run: \n{jira_executables}"
         f"Analysis project: "
     )
 
@@ -511,10 +584,9 @@ def completed_run(run, executables, times) -> None:
         "This run was processed automatically by eggd_conductor: "
     )
 
-    slack_notify(channel=channel, message=message, job_id=run["id"])
-
     jira_comment(
         run_id=run["run_id"],
+        assay=assay,
         jira_message=jira_message,
         project_url=project_url,
         conductor_message=conductor_message,
@@ -553,42 +625,75 @@ def monitor():
     dx_login(os.environ.get("AUTH_TOKEN"))
 
     conductor_jobs = find_jobs(testing_job)
-    conductor_jobs = filter_notified_jobs(conductor_jobs)
     conductor_jobs = get_run_ids(conductor_jobs)
-    conductor_jobs = get_launched_jobs(conductor_jobs)
+
+    finished_states = {"done", "failed", "partially failed", "terminated"}
 
     for job in conductor_jobs:
-        # get the state of all launched analysis jobs
-        all_states, all_executables, times = get_all_job_states(job)
-        log.info(f'Current state for {job["id"]}: {all_states}')
+        # get the state of all launched analysis jobs for given conductor job
+        _, jobs_by_project = get_launched_jobs([job])
+        project_states, total_states = get_all_job_states(jobs_by_project)
 
-        if all_states.get("failed") or all_states.get("partially failed"):
-            # something has failed => send an alert
-            failed_run(job)
+        log.info(f"Current state(s) for {job['id']}: {total_states}")
 
-        elif list(all_states.keys()) == ["done"]:
-            # everything completed with no failed jobs => send notification
-            completed_run(job, all_executables, times)
+        unnotified = filter_notified_projects(
+            job, project_states.keys())
 
-        elif list(all_states.keys()) == ["terminated"]:
-            # everything has been terminated => add the run ID to the
-            # notified log file to stop checking it
-            log.info(
-                f"All jobs terminated for {job['id']} => stopping monitoring"
-            )
-            with open("logs/monitor_job_ids_notified.log", "a+") as fh:
-                fh.write(f"{job['id']}\n")
-
-        elif not all_states:
+        if not total_states:
             # no job states => no launched jobs => stop monitoring
             log.info(
                 f"No launched jobs for {job['id']} => stopping monitoring"
             )
-            with open("logs/monitor_job_ids_notified.log", "a+") as fh:
-                fh.write(f"{job['id']}\n")
+            continue
+
+        # check the state of each project with launched jobs and notify
+        for project, states in project_states.items():
+            if project not in unnotified:
+                log.info(
+                    f"Already sent notification for {project} "
+                    f"=> skipping project"
+                )
+                continue
+
+            state = states["all_states_count"]
+            executables = states["all_executables_count"]
+            times = states["times"]
+            log.info(f"Current state for {project} in {job['id']}: {state}")
+
+            # something has failed => send an alert
+            if state.get("failed") or state.get("partially failed"):
+                failed_run(job, project)
+                with open("logs/monitor_project_ids_notified.log", "a+") as fh:
+                    fh.write(f"{job['id']}:{project}\n")
+
+            # everything completed with no failed jobs => send notification
+            elif set(state.keys()) == {"done"}:
+                completed_run(job, executables, times, project)
+                with open("logs/monitor_project_ids_notified.log", "a+") as fh:
+                    fh.write(f"{job['id']}:{project}\n")
+
+            # everything has been terminated for that project =>
+            # stop monitoring
+            elif set(state.keys()) == {"terminated"}:
+                log.info(f"All jobs terminated for {project} "
+                         f"=> stopping monitoring")
+                with open("logs/monitor_project_ids_notified.log", "a+") as fh:
+                    fh.write(f"{job['id']}:{project}\n")
+
+        if set(total_states.keys()).issubset(finished_states):
+            # everything has finished for the job => add to log
+            if set(total_states.keys()) == {"terminated"}:
+                log.info(
+                    f"All jobs terminated for {job['id']}"
+                    f"=> stopping monitoring"
+                )
+            else:
+                log.info(
+                    f"All jobs finished for {job['id']} => stopping monitoring"
+                )
 
         else:
-            # jobs still in progress
+            # jobs still in progress => continue monitoring
             log.info(
                 f"Jobs launched from {job['id']} "
                 "have not failed or all completed"

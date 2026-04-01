@@ -100,6 +100,34 @@ class Jira:
 
         return run_tickets
 
+    def filter_tickets_by_assay(self, assay, tickets) -> list:
+        """
+        Filter a list of tickets to find the one associated with a given assay
+
+        Parameters
+        ----------
+        assay : str
+            assay of the sequencing run
+        tickets : list
+            list of tickets to filter through
+
+        Returns
+        -------
+        list
+            list of matching tickets
+        """
+
+        assay_tickets = [
+            x for x in tickets
+            if assay.strip("38_") in (
+                ((x.get("fields") or {})
+                 .get("customfield_10070") or [{}])[0]
+                .get("value", "")
+            )
+        ]
+
+        return assay_tickets
+
     def add_comment(self, comment, project_url, conductor_message, url,
                     ticket=None) -> None:
         """
