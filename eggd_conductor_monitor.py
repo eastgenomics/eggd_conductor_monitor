@@ -121,7 +121,7 @@ def filter_notified_projects(job, projects) -> list:
 
     Parameters
     ----------
-    job : list
+    job : dict
         job describe object
     projects : list
         list of project IDs
