@@ -115,32 +115,6 @@ def find_jobs(testing_conductor_job) -> list:
     return jobs
 
 
-def filter_notified_jobs(jobs) -> list:
-    """
-    Filter out job IDs of runs already notified
-
-    Parameters
-    ----------
-    jobs : list
-        list of job describe objects
-
-    Returns
-    -------
-    list
-        list of job describe objects where no Slack notification has been sent
-    """
-    with open("logs/monitor_job_ids_notified.log", "a+") as fh:
-        fh.seek(0)
-        notified_jobs = fh.read().splitlines()
-
-    log.info(
-        "Jobs already notified via Slack or not to notify: "
-        f"{os.linesep}{notified_jobs}"
-    )
-
-    return [x for x in jobs if x["id"] not in notified_jobs]
-
-
 def filter_notified_projects(job, projects) -> list:
     """
     Filter out project IDs of runs already notified
