@@ -350,10 +350,9 @@ def jira_comment(
         filtered_tickets = jira.filter_tickets_by_run(run_id, all_tickets)
 
         # filter by assay code if multiple tickets
-        if len(filtered_tickets) > 1:
-            filtered_tickets = jira.filter_tickets_by_assay(
-                assay, filtered_tickets
-                )
+
+        filtered_tickets = jira.filter_tickets_by_assay(
+            assay, filtered_tickets)
 
         project_id = os.environ.get("DX_PROJECT")
         job_url = (
@@ -373,7 +372,7 @@ def jira_comment(
 
         # add comment to Jira ticket for run to link to
         # this eggd_conductor job
-        elif len(filtered_tickets) == 1:
+        else:
             for ticket in filtered_tickets:
                 log.info(
                     f"Adding comment to Jira ticket {ticket['id']} "
