@@ -634,6 +634,13 @@ def monitor():
         unnotified = filter_notified_projects(
             job, project_states.keys())
 
+        if not total_states:
+            # no job states => no launched jobs => stop monitoring
+            log.info(
+                f"No launched jobs for {job['id']} => stopping monitoring"
+            )
+            continue
+
         # check the state of each project with launched jobs and notify
         for project, states in project_states.items():
             if project not in unnotified:
@@ -668,16 +675,8 @@ def monitor():
                 with open("logs/monitor_project_ids_notified.log", "a+") as fh:
                     fh.write(f"{job['id']}:{project}\n")
 
-        if not total_states:
-            # no job states => no launched jobs => stop monitoring
-            log.info(
-                f"No launched jobs for {job['id']} => stopping monitoring"
-            )
-            continue
-
-        elif set(total_states.keys()).issubset(finished_states):
-            # everything has been terminated => add the run ID to the
-            # notified log file to stop checking it
+        if set(total_states.keys()).issubset(finished_states):
+            # everything has finished for the job => add to log
             if set(total_states.keys()) == {"terminated"}:
                 log.info(
                     f"All jobs terminated for {job['id']}"
@@ -689,7 +688,7 @@ def monitor():
                 )
 
         else:
-            # jobs still in progress
+            # jobs still in progress => continue monitoring
             log.info(
                 f"Jobs launched from {job['id']} "
                 "have not failed or all completed"
